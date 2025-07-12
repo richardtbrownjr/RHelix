@@ -114,8 +114,8 @@ I'm documenting what I learn along the way:
 ## Try It Out (Eventually!)
 
 ```bash
-# Clone the repo
-git clone https://github.com/yourusername/rhelix
+# Clone the repo 
+git clone https://github.com/richardtbrownjr/RHelix
 cd rhelix
 
 # Build the runtime (C components)
