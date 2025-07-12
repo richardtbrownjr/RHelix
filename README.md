@@ -161,7 +161,7 @@ def optimized_function(data):
     return result
 ```
 ## Build Status                        
-![Build and Test](https://github.com/yourusername/rhelix/workflows/Build%20and%20Test/badge.svg)
+![Build and Test](https://github.com/richardtbrownjr/RHelix/workflows/Build%20and%20Test/badge.svg)
 
 ## Recent Progress                     
 - ✅ Core memory management system
