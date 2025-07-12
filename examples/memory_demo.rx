@@ -1,0 +1,36 @@
+# memory_demo.rx - RHelix memory management examples
+# This shows the syntax we're aiming for
+
+# Example 1: Automatic memory (default)
+def process_data(filename: string) -> Results:
+    data = load_file(filename)  # Automatically managed
+    processed = analyze(data)    # Reference counted
+    return processed
+    # 'data' automatically freed when no longer referenced
+
+# Example 2: Performance with arena
+@arena(size="50MB")
+def batch_process(items: List[Item]) -> Summary:
+    # All allocations in this function use the arena
+    temp_results = alloc[float](len(items) * 100)
+    scratch_buffer = alloc[byte](1024 * 1024)
+    
+    for i, item in enumerate(items):
+        temp_results[i] = compute_metric(item)
+    
+    return summarize(temp_results)
+    # Arena automatically freed, cleaning up all temps
+
+# Example 3: Real-time with stack allocation
+def audio_callback(input: AudioBuffer) -> AudioBuffer:
+    with stack[4096]:  # 4KB stack buffer
+        # Fast stack allocation for temporary data
+        fft_buffer = alloc[complex](512)
+        window = alloc[float](512)
+        
+        apply_window(input, window)
+        compute_fft(window, fft_buffer)
+        process_spectrum(fft_buffer)
+        
+        return inverse_fft(fft_buffer)
+    # Stack automatically cleaned
