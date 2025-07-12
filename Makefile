@@ -34,3 +34,9 @@ test: $(BUILD_DIR)
 
 clean:
 	rm -rf $(BUILD_DIR)/*
+# Add test source
+TEST_SRCS = $(RUNTIME_DIR)/test_memory.c
+
+test: $(BUILD_DIR)
+	$(CC) $(CFLAGS) $(RUNTIME_DIR)/memory_manager.c $(TEST_SRCS) -o $(BUILD_DIR)/test_memory
+	./$(BUILD_DIR)/test_memory
