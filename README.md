@@ -160,6 +160,17 @@ def optimized_function(data):
         result = expensive_operation(data)
     return result
 ```
+## Build Status                        
+![Build and Test](https://github.com/yourusername/rhelix/workflows/Build%20and%20Test/badge.svg)
+
+## Recent Progress                     
+- ✅ Core memory management system
+- ✅ Reference counting with cycle detection
+- ✅ Arena allocators for performance
+- ✅ Test suite
+- 🚧 Parser implementation (next)
+- 📋 Type system design
+- 📋 Standard library
 
 ## Resources I'm Pulling From
 
