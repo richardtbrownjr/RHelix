@@ -40,3 +40,21 @@ TEST_SRCS = $(RUNTIME_DIR)/test_memory.c
 test: $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(RUNTIME_DIR)/memory_manager.c $(TEST_SRCS) -o $(BUILD_DIR)/test_memory
 	./$(BUILD_DIR)/test_memory
+
+# Compiler sources
+COMPILER_DIR = $(SRC_DIR)/compiler
+COMPILER_SRCS = $(COMPILER_DIR)/token.c $(COMPILER_DIR)/lexer.c
+COMPILER_OBJS = $(BUILD_DIR)/token.o $(BUILD_DIR)/lexer.o
+
+# Add compiler build target
+compiler: $(COMPILER_OBJS)
+	ar rcs $(BUILD_DIR)/librhelix_compiler.a $(COMPILER_OBJS)
+	@echo "Compiler library built successfully!"
+
+# Test lexer
+test-lexer: compiler
+	$(CC) $(CFLAGS) $(COMPILER_DIR)/test_lexer.c $(COMPILER_SRCS) -o $(BUILD_DIR)/test_lexer
+	./$(BUILD_DIR)/test_lexer
+
+# Update all target
+all: runtime compiler
