@@ -190,7 +190,7 @@ static Token* read_identifier(Lexer* lexer) {
     // Check if it's a keyword
     int length = (int)(lexer->current - start);
     for (int i = 0; keywords[i].keyword != NULL; i++) {
-        if (strlen(keywords[i].keyword) == length &&
+        if (strlen(keywords[i].keyword) == (size_t)length &&
             strncmp(keywords[i].keyword, start, length) == 0) {
             return make_token(lexer, keywords[i].type, start);
         }
