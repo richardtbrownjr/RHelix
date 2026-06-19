@@ -186,5 +186,48 @@ int main(void) {
         "if x > 0:\n"
         "y = 1\n");
 
+        // ===== Function calls =====
+        printf("\n\n========== FUNCTION CALL TESTS ==========\n");
+
+        test_parser_case("Zero-arg call", "foo()");
+        test_parser_case("One-arg call", "foo(42)");
+        test_parser_case("Multi-arg call", "foo(1, 2, 3)");
+        test_parser_case("Call with expression args", "foo(x + 1, y * 2)");
+        test_parser_case("Nested call", "print(add(1, 2))");
+        test_parser_case("Chained calls", "foo()()");
+        test_parser_case("Error: missing closing paren in call", "foo(1, 2");
+
+        test_module_case("Bare call as statement", "foo()\n");
+        test_module_case("Call as assignment value", "x = compute(10, 20)\n");
+
+        // ===== For loops =====
+        printf("\n\n========== FOR LOOP TESTS ==========\n");
+
+        test_module_case("Simple for",
+            "for i in items:\n"
+            "    x = i\n");
+
+        test_module_case("For with multi-statement body",
+            "for i in items:\n"
+            "    a = i * 2\n"
+            "    b = a + 1\n");
+
+        test_module_case("Nested for",
+            "for i in outer:\n"
+            "    for j in inner:\n"
+            "        x = i + j\n");
+
+        test_module_case("For with call in body (combined proof)",
+            "for i in items:\n"
+            "    print(i + 1)\n");
+
+        test_module_case("Error: for without in",
+            "for i = items:\n"
+            "    x = i\n");
+
+        test_module_case("Error: for without identifier",
+            "for in items:\n"
+            "    x = i\n");
+
     return 0;
 }

@@ -18,6 +18,7 @@ static Keyword keywords[] = {
     {"if", TOKEN_IF},
     {"else", TOKEN_ELSE},
     {"for", TOKEN_FOR},
+    {"in", TOKEN_IN},
     {"while", TOKEN_WHILE},
     {"class", TOKEN_CLASS},
     {"import", TOKEN_IMPORT},

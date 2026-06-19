@@ -92,6 +92,7 @@ static ASTNode* comparison(Parser* parser);
 static ASTNode* term(Parser* parser);
 static ASTNode* factor(Parser* parser);
 static ASTNode* unary(Parser* parser);
+static ASTNode* call(Parser* parser);
 static ASTNode* primary(Parser* parser);
 
 static ASTNode* statement(Parser* parser);
@@ -101,6 +102,7 @@ static ASTNode* expression_statement(Parser* parser);
 static ASTNode* block(Parser* parser);
 static ASTNode* if_statement(Parser* parser);
 static ASTNode* while_statement(Parser* parser);
+static ASTNode* for_statement(Parser* parser);
 
 // ===== Expression grammar =====
 
@@ -165,7 +167,52 @@ static ASTNode* unary(Parser* parser) {
         if (!operand) return NULL;
         return ast_unary(op->type, operand, op->line, op->column);
     }
-    return primary(parser);
+    return call(parser);
+}
+
+// call -> primary ( "(" arguments? ")" )*
+// arguments -> expression ( "," expression )*
+static ASTNode* call(Parser* parser) {
+    ASTNode* expr = primary(parser);
+    if (!expr) return NULL;
+
+    while (check(parser, TOKEN_LPAREN)) {
+        Token* lparen = advance(parser);
+
+        ASTNode* call_node = ast_call(expr, lparen->line, lparen->column);
+        if (!call_node) {
+            ast_destroy(expr);
+            return NULL;
+        }
+
+        if (!check(parser, TOKEN_RPAREN)) {
+            ASTNode* arg = expression(parser);
+            if (!arg) {
+                ast_destroy(call_node);
+                return NULL;
+            }
+            ast_call_add_arg(call_node, arg);
+
+            while (check(parser, TOKEN_COMMA)) {
+                advance(parser);
+                arg = expression(parser);
+                if (!arg) {
+                    ast_destroy(call_node);
+                    return NULL;
+                }
+                ast_call_add_arg(call_node, arg);
+            }
+        }
+
+        if (!consume(parser, TOKEN_RPAREN, "Expected ')' after arguments")) {
+            ast_destroy(call_node);
+            return NULL;
+        }
+
+        expr = call_node;
+    }
+
+    return expr;
 }
 
 static ASTNode* primary(Parser* parser) {
@@ -208,11 +255,11 @@ static ASTNode* primary(Parser* parser) {
 
 // ===== Statement grammar =====
 
-// statement -> if_statement | while_statement | return_statement
-//            | assignment_statement | expression_statement
+// statement -> if | while | for | return | assignment | expression_stmt
 static ASTNode* statement(Parser* parser) {
     if (check(parser, TOKEN_IF))     return if_statement(parser);
     if (check(parser, TOKEN_WHILE))  return while_statement(parser);
+    if (check(parser, TOKEN_FOR))    return for_statement(parser);
     if (check(parser, TOKEN_RETURN)) return return_statement(parser);
     if (check(parser, TOKEN_IDENTIFIER)) {
         Token* next = peek_at(parser, 1);
@@ -353,6 +400,42 @@ static ASTNode* while_statement(Parser* parser) {
     }
 
     return ast_while(condition, body, while_token->line, while_token->column);
+}
+
+// for_statement -> "for" IDENTIFIER "in" expression ":" NEWLINE block
+static ASTNode* for_statement(Parser* parser) {
+    Token* for_token = advance(parser);  // Consume FOR
+
+    if (!check(parser, TOKEN_IDENTIFIER)) {
+        parser_error(parser, "Expected identifier after 'for'");
+        return NULL;
+    }
+    Token* var_token = advance(parser);  // Consume IDENTIFIER
+
+    if (!consume(parser, TOKEN_IN, "Expected 'in' after for variable")) {
+        return NULL;
+    }
+
+    ASTNode* iterable = expression(parser);
+    if (!iterable) return NULL;
+
+    if (!consume(parser, TOKEN_COLON, "Expected ':' after for iterable")) {
+        ast_destroy(iterable);
+        return NULL;
+    }
+    if (!consume(parser, TOKEN_NEWLINE, "Expected newline after ':'")) {
+        ast_destroy(iterable);
+        return NULL;
+    }
+
+    ASTNode* body = block(parser);
+    if (!body) {
+        ast_destroy(iterable);
+        return NULL;
+    }
+
+    return ast_for(var_token->lexeme, iterable, body,
+                   for_token->line, for_token->column);
 }
 
 // ===== Public API =====

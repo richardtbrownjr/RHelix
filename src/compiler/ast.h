@@ -17,6 +17,7 @@ typedef enum {
     AST_BINARY,
     AST_UNARY,
     AST_GROUPING,
+    AST_CALL,
     // Simple statements
     AST_EXPRESSION_STMT,
     AST_ASSIGNMENT,
@@ -25,6 +26,7 @@ typedef enum {
     AST_BLOCK,
     AST_IF,
     AST_WHILE,
+    AST_FOR,
     // Top level
     AST_MODULE
 } ASTNodeType;
@@ -52,6 +54,13 @@ typedef struct {
     ASTNode* expression;
 } ASTGrouping;
 
+typedef struct {
+    ASTNode* callee;
+    ASTNode** args;
+    int arg_count;
+    int arg_capacity;
+} ASTCall;
+
 // === Simple statement payloads ===
 
 typedef struct {
@@ -77,16 +86,22 @@ typedef struct {
 
 typedef struct {
     ASTNode* condition;
-    ASTNode* then_block;    // AST_BLOCK
-    ASTNode* else_block;    // AST_BLOCK or NULL
+    ASTNode* then_block;
+    ASTNode* else_block;
 } ASTIf;
 
 typedef struct {
     ASTNode* condition;
-    ASTNode* body;          // AST_BLOCK
+    ASTNode* body;
 } ASTWhile;
 
-// === Module (top level) ===
+typedef struct {
+    char* var_name;        // Loop variable (simple identifier for v1)
+    ASTNode* iterable;     // Expression being iterated
+    ASTNode* body;         // AST_BLOCK
+} ASTFor;
+
+// === Module ===
 
 typedef struct {
     ASTNode** statements;
@@ -109,12 +124,14 @@ struct ASTNode {
         ASTBinary binary;
         ASTUnary unary;
         ASTGrouping grouping;
+        ASTCall call;
         ASTExpressionStmt expression_stmt;
         ASTAssignment assignment;
-        ASTReturn ret;          // 'return' is a C keyword
+        ASTReturn ret;
         ASTBlock block;
-        ASTIf if_stmt;          // 'if' is a C keyword
-        ASTWhile while_stmt;    // 'while' is a C keyword
+        ASTIf if_stmt;
+        ASTWhile while_stmt;
+        ASTFor for_stmt;
         ASTModule module;
     } as;
 };
@@ -130,6 +147,8 @@ ASTNode* ast_identifier(const char* name, int line, int column);
 ASTNode* ast_binary(TokenType op, ASTNode* left, ASTNode* right, int line, int column);
 ASTNode* ast_unary(TokenType op, ASTNode* operand, int line, int column);
 ASTNode* ast_grouping(ASTNode* expression, int line, int column);
+ASTNode* ast_call(ASTNode* callee, int line, int column);
+void ast_call_add_arg(ASTNode* call, ASTNode* arg);
 
 // === Simple statement constructors ===
 
@@ -144,6 +163,8 @@ void ast_block_add(ASTNode* block, ASTNode* statement);
 ASTNode* ast_if(ASTNode* condition, ASTNode* then_block, ASTNode* else_block,
                 int line, int column);
 ASTNode* ast_while(ASTNode* condition, ASTNode* body, int line, int column);
+ASTNode* ast_for(const char* var_name, ASTNode* iterable, ASTNode* body,
+                 int line, int column);
 
 // === Module ===
 
