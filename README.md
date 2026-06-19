@@ -1,4 +1,3 @@
-
 # RHelix - A Modern Language for the AI Era
 
 > 🎓 A learning project to deeply understand programming language design while building something practical for the age of AI-assisted development. I'm building this language as a journey to understand how programming languages really work under the hood. But rather than just building another toy language, I want to create something that addresses a real need: **a language designed from the ground up for the era of AI pair programming**.
@@ -59,7 +58,7 @@ with stack[4096]:  # Clear to both human and AI
     temp_buffer = process_chunk(data)
 ```
 
-## Current Status - under construction
+## Current Status
 
 ### Implemented
 - [x] Core memory management system in C
@@ -67,14 +66,27 @@ with stack[4096]:  # Clear to both human and AI
   - Arena allocators for bulk operations
   - Stack allocation for temporaries
 - [x] Language design for memory annotations
-- [x] Basic compiler structure for memory features
+- [x] Lexer with Python-style indentation tracking (INDENT/DEDENT emission, multi-level dedent)
+- [x] Full token set: literals, keywords, memory primitives, operators, delimiters, lambdas (`=>`), pipelines (`|>`)
+- [x] Tagged-union AST module
+- [x] Expression parser with recursive descent and operator precedence
+  - Seven precedence levels (equality, comparison, term, factor, unary, call, primary)
+  - Left-associative binary operators, right-associative unary
+  - Grouping via parentheses
+  - First-error-wins error reporting with line and column
+- [x] Module + statement parser (assignment, return, expression statement)
+- [x] Block parser consuming INDENT/DEDENT
+- [x] Control flow statements: if/else, while, for
+- [x] Function call expressions (postfix `()` with comma-separated args, chained calls supported)
 
 ### In Progress
-- [ ] Parser for the language syntax
+- [ ] Function and class declarations (`def`, `class`)
+- [ ] Decorators and `with` blocks (memory annotations)
+- [ ] Subscripts (`arr[i]`) and attribute access (`obj.field`)
 - [ ] Type system with gradual typing
-- [ ] Code generation to C
 
 ### Planned
+- [ ] Code generation to C
 - [ ] JIT compilation for hot paths
 - [ ] AI-friendly error messages
 - [ ] Built-in profiling annotations
@@ -102,7 +114,7 @@ def process_images(images: List[Image]) -> List[Image]:
                 enhanced = enhance_fast(img)
                 results.append(enhanced)
         return results
-    
+
     # Process in parallel batches
     return parallel_map(process_batch, images.chunks(cpu_count()))
 ```
@@ -111,20 +123,42 @@ def process_images(images: List[Image]) -> List[Image]:
 
 I'm documenting what I learn along the way:
 
-## Try It Out (Eventually!)
+## Try It Out
+
+The lexer and a substantial parser are runnable right now. The frontend can parse real algorithmic code — assignments, returns, if/else, while loops, for loops, function calls, and arbitrarily nested combinations of all of these.
 
 ```bash
-# Clone the repo 
+# Clone the repo
 git clone https://github.com/richardtbrownjr/RHelix
-cd rhelix
+cd RHelix
 
-# Build the runtime (C components)
-make runtime
+# Build the runtime and compiler libraries
+make
 
-# Run tests
+# Run the memory manager test suite (runtime layer)
 make test
 
-# Try examples (coming soon)
+# Run the lexer test suite (tokenization, INDENT/DEDENT, full token set)
+make test-lexer
+
+# Run the parser test suite (expressions, statements, control flow, calls)
+make test-parser
+```
+
+The parser tests demonstrate code shapes like:
+
+```python
+for item in collection:
+    if item > threshold:
+        result = process(item, config)
+    else:
+        log(item)
+```
+
+producing fully-formed ASTs with correct precedence, associativity, block nesting, and call resolution. Both test runners pretty-print their output so you can see exactly how source code maps to tokens and ASTs.
+
+### Future (once `def`/`class` and code generation land)
+```bash
 ./rhelix examples/hello.rx
 ```
 
@@ -160,17 +194,27 @@ def optimized_function(data):
         result = expensive_operation(data)
     return result
 ```
+
 ## Build Status                        
 ![Build and Test](https://github.com/richardtbrownjr/RHelix/workflows/Build%20and%20Test/badge.svg)
 
-## Recent Progress                     
-- ✅ Core memory management system
-- ✅ Reference counting with cycle detection
-- ✅ Arena allocators for performance
-- ✅ Test suite
-- 🚧 Parser implementation (next)
+## Recent Progress
+- ✅ Core memory management system in C (reference counting + cycle detection + arenas)
+- ✅ Runtime test suite
+- ✅ Lexer with Python-style indentation (INDENT/DEDENT, multi-level dedent, blank-line handling)
+- ✅ Full token set including lambdas (`=>`), pipeline operator (`|>`), and `in` keyword
+- ✅ Tagged-union AST module
+- ✅ Expression parser with operator precedence, associativity, and grouping
+- ✅ Module + statement parser foundation (assignment, return, expression statement)
+- ✅ Block parser using INDENT/DEDENT
+- ✅ Control flow complete: if/else, while, for
+- ✅ Function call expressions with arbitrary arguments (chained calls supported)
+- ✅ Parser test suite covering expressions, statements, control flow, calls, and error paths
+- 🚧 Function and class declarations (`def`, `class`) — next
+- 📋 Subscripts and attribute access (`arr[i]`, `obj.field`)
+- 📋 Decorators and `with` blocks (memory annotations)
 - 📋 Type system design
-- 📋 Standard library
+- 📋 Code generation to C
 
 ## Resources I'm Pulling From
 
