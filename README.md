@@ -68,15 +68,17 @@ with stack[4096]:  # Clear to both human and AI
 - [x] Language design for memory annotations
 - [x] Lexer with Python-style indentation tracking (INDENT/DEDENT emission, multi-level dedent)
 - [x] Full token set: literals, keywords, memory primitives, operators, delimiters, lambdas (`=>`), pipelines (`|>`)
-- [x] AST module with tagged-union representation across nine node types
+- [x] Tagged-union AST module
 - [x] Expression parser with recursive descent and operator precedence
   - Six precedence levels (equality, comparison, term, factor, unary, primary)
   - Left-associative binary operators, right-associative unary
   - Grouping via parentheses
   - First-error-wins error reporting with line and column
+- [x] Module + statement parser (assignment, return, expression statement)
 
 ### In Progress
-- [ ] Statement parser (assignment, return, if/else, while, for)
+- [ ] Block parser consuming INDENT/DEDENT
+- [ ] Control flow statements (if/else, while, for)
 - [ ] Function and class declarations
 - [ ] Decorators and `with` blocks (memory annotations)
 - [ ] Type system with gradual typing
@@ -121,7 +123,7 @@ I'm documenting what I learn along the way:
 
 ## Try It Out
 
-The lexer, AST, and expression parser are runnable right now. Statements and declarations come next.
+The lexer, AST, expression parser, and statement parser foundation are runnable right now. Block parsing and control flow come next.
 
 ```bash
 # Clone the repo
@@ -137,13 +139,13 @@ make test
 # Run the lexer test suite (tokenization, INDENT/DEDENT, full token set)
 make test-lexer
 
-# Run the parser test suite (expressions with full operator precedence)
+# Run the parser test suite (expressions and statements)
 make test-parser
 ```
 
-The lexer tests demonstrate Python-style indentation tracking across nested blocks and confirm every token type is recognized. The parser tests cover precedence, associativity, grouping, and error reporting — both the test runners pretty-print their output so you can see exactly how source code maps to tokens and ASTs.
+The lexer tests demonstrate Python-style indentation tracking across nested blocks and confirm every token type is recognized. The parser tests cover expression precedence, associativity, grouping, and statement-level parsing for assignments, returns, and expression statements — both test runners pretty-print their output so you can see exactly how source code maps to tokens and ASTs.
 
-### Future (once statements and declarations land)
+### Future (once blocks and declarations land)
 ```bash
 ./rhelix examples/hello.rx
 ```
@@ -187,12 +189,14 @@ def optimized_function(data):
 ## Recent Progress
 - ✅ Core memory management system in C (reference counting + cycle detection + arenas)
 - ✅ Runtime test suite
-- ✅ Lexer with Python-style indentation (INDENT/DEDENT emission, multi-level dedent, blank-line handling)
+- ✅ Lexer with Python-style indentation (INDENT/DEDENT, multi-level dedent, blank-line handling)
 - ✅ Full token set including lambdas (`=>`) and pipeline operator (`|>`)
-- ✅ AST module (tagged union across nine node types)
+- ✅ Tagged-union AST module
 - ✅ Expression parser with operator precedence, associativity, and grouping
-- ✅ Parser test suite covering precedence, associativity, and error paths
-- 🚧 Statement parser (next)
+- ✅ Module + statement parser foundation (assignment, return, expression statement)
+- ✅ Parser test suite covering expressions, statements, and error paths
+- 🚧 Block parser using INDENT/DEDENT (next)
+- 📋 Control flow: if/else, while, for
 - 📋 Function and class declarations
 - 📋 Type system design
 - 📋 Code generation to C
