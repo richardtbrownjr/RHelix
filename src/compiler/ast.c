@@ -4,8 +4,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-// Internal helper: allocate a node and set the common fields.
-// Caller is responsible for setting node->as.<member> before returning.
 static ASTNode* make_node(ASTNodeType type, int line, int column) {
     ASTNode* node = (ASTNode*)malloc(sizeof(ASTNode));
     if (!node) return NULL;
@@ -15,7 +13,7 @@ static ASTNode* make_node(ASTNodeType type, int line, int column) {
     return node;
 }
 
-// ===== Constructors =====
+// ===== Expression constructors =====
 
 ASTNode* ast_literal_int(long value, int line, int column) {
     ASTNode* node = make_node(AST_LITERAL_INT, line, column);
@@ -80,6 +78,52 @@ ASTNode* ast_grouping(ASTNode* expression, int line, int column) {
     return node;
 }
 
+// ===== Statement constructors =====
+
+ASTNode* ast_expression_stmt(ASTNode* expression, int line, int column) {
+    ASTNode* node = make_node(AST_EXPRESSION_STMT, line, column);
+    if (!node) return NULL;
+    node->as.expression_stmt.expression = expression;
+    return node;
+}
+
+ASTNode* ast_assignment(ASTNode* target, ASTNode* value, int line, int column) {
+    ASTNode* node = make_node(AST_ASSIGNMENT, line, column);
+    if (!node) return NULL;
+    node->as.assignment.target = target;
+    node->as.assignment.value = value;
+    return node;
+}
+
+ASTNode* ast_return(ASTNode* value, int line, int column) {
+    ASTNode* node = make_node(AST_RETURN, line, column);
+    if (!node) return NULL;
+    node->as.ret.value = value;  // may be NULL for bare return
+    return node;
+}
+
+// ===== Module =====
+
+ASTNode* ast_module(int line, int column) {
+    ASTNode* node = make_node(AST_MODULE, line, column);
+    if (!node) return NULL;
+    node->as.module.statements = NULL;
+    node->as.module.count = 0;
+    node->as.module.capacity = 0;
+    return node;
+}
+
+void ast_module_add(ASTNode* module, ASTNode* statement) {
+    if (!module || module->type != AST_MODULE || !statement) return;
+    ASTModule* m = &module->as.module;
+    if (m->count >= m->capacity) {
+        int new_cap = m->capacity == 0 ? 8 : m->capacity * 2;
+        m->statements = (ASTNode**)realloc(m->statements, sizeof(ASTNode*) * new_cap);
+        m->capacity = new_cap;
+    }
+    m->statements[m->count++] = statement;
+}
+
 // ===== Destructor =====
 
 void ast_destroy(ASTNode* node) {
@@ -90,7 +134,6 @@ void ast_destroy(ASTNode* node) {
         case AST_LITERAL_FLOAT:
         case AST_LITERAL_BOOL:
         case AST_LITERAL_NONE:
-            // No heap-allocated members
             break;
         case AST_LITERAL_STRING:
             free(node->as.literal_string.value);
@@ -108,12 +151,28 @@ void ast_destroy(ASTNode* node) {
         case AST_GROUPING:
             ast_destroy(node->as.grouping.expression);
             break;
+        case AST_EXPRESSION_STMT:
+            ast_destroy(node->as.expression_stmt.expression);
+            break;
+        case AST_ASSIGNMENT:
+            ast_destroy(node->as.assignment.target);
+            ast_destroy(node->as.assignment.value);
+            break;
+        case AST_RETURN:
+            if (node->as.ret.value) ast_destroy(node->as.ret.value);
+            break;
+        case AST_MODULE:
+            for (int i = 0; i < node->as.module.count; i++) {
+                ast_destroy(node->as.module.statements[i]);
+            }
+            free(node->as.module.statements);
+            break;
     }
 
     free(node);
 }
 
-// ===== Debug helpers =====
+// ===== Debug =====
 
 const char* ast_node_type_to_string(ASTNodeType type) {
     switch (type) {
@@ -126,14 +185,16 @@ const char* ast_node_type_to_string(ASTNodeType type) {
         case AST_BINARY: return "Binary";
         case AST_UNARY: return "Unary";
         case AST_GROUPING: return "Grouping";
+        case AST_EXPRESSION_STMT: return "ExpressionStmt";
+        case AST_ASSIGNMENT: return "Assignment";
+        case AST_RETURN: return "Return";
+        case AST_MODULE: return "Module";
         default: return "UNKNOWN";
     }
 }
 
 static void print_indent(int indent) {
-    for (int i = 0; i < indent; i++) {
-        printf("  ");
-    }
+    for (int i = 0; i < indent; i++) printf("  ");
 }
 
 void ast_print(ASTNode* node, int indent) {
@@ -179,6 +240,29 @@ void ast_print(ASTNode* node, int indent) {
         case AST_GROUPING:
             printf("Grouping\n");
             ast_print(node->as.grouping.expression, indent + 1);
+            break;
+        case AST_EXPRESSION_STMT:
+            printf("ExpressionStmt\n");
+            ast_print(node->as.expression_stmt.expression, indent + 1);
+            break;
+        case AST_ASSIGNMENT:
+            printf("Assignment\n");
+            ast_print(node->as.assignment.target, indent + 1);
+            ast_print(node->as.assignment.value, indent + 1);
+            break;
+        case AST_RETURN:
+            if (node->as.ret.value) {
+                printf("Return\n");
+                ast_print(node->as.ret.value, indent + 1);
+            } else {
+                printf("Return(bare)\n");
+            }
+            break;
+        case AST_MODULE:
+            printf("Module(%d statements)\n", node->as.module.count);
+            for (int i = 0; i < node->as.module.count; i++) {
+                ast_print(node->as.module.statements[i], indent + 1);
+            }
             break;
     }
 }

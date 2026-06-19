@@ -36,6 +36,37 @@ static void test_parser_case(const char* name, const char* source) {
     free(tokens);
 }
 
+static void test_module_case(const char* name, const char* source) {
+    printf("\n=== Testing: %s ===\n", name);
+    printf("Source:\n%s\n", source);
+
+    int token_count;
+    Token** tokens = lexer_tokenize(source, &token_count);
+    if (!tokens) {
+        printf("Lexer failed\n");
+        return;
+    }
+
+    Parser* parser = parser_create(tokens, token_count);
+    ASTNode* ast = parser_parse_module(parser);
+
+    if (parser->had_error) {
+        printf("Error: %s\n", parser->error_message);
+    } else if (ast) {
+        printf("AST:\n");
+        ast_print(ast, 1);
+    } else {
+        printf("(no AST returned, no error reported)\n");
+    }
+
+    if (ast) ast_destroy(ast);
+    parser_destroy(parser);
+    for (int i = 0; i < token_count; i++) {
+        token_destroy(tokens[i]);
+    }
+    free(tokens);
+}
+
 int main(void) {
     printf("RHelix Parser Test Suite\n");
 
@@ -73,6 +104,38 @@ int main(void) {
     test_parser_case("Missing right operand", "42 +");
     test_parser_case("Missing closing paren", "(1 + 2");
     test_parser_case("Just a stray operator", "+");
+    // ===== Module / statement parser =====
+    printf("\n\n========== MODULE PARSER TESTS ==========\n");
+
+    test_module_case("Empty module", "");
+    test_module_case("Single expression statement", "42");
+    test_module_case("Single assignment", "x = 42");
+    test_module_case("Return with value", "return x + 1");
+    test_module_case("Bare return", "return");
+
+    test_module_case("Three assignments",
+        "x = 1\n"
+        "y = 2\n"
+        "z = x + y\n");
+
+    test_module_case("Mixed statement types",
+        "x = 42\n"
+        "y > 0\n"
+        "return x * y\n");
+
+    test_module_case("Blank lines between statements",
+        "x = 1\n"
+        "\n"
+        "\n"
+        "y = 2\n");
+
+    test_module_case("Function-shaped (no def yet)",
+        "x = 10\n"
+        "y = 20\n"
+        "return x + y\n");
+
+    test_module_case("Error: assignment with no value", "x = ");
+    test_module_case("Error: bare operator in expression statement", "+");
 
     return 0;
 }

@@ -30,6 +30,12 @@ static Token* peek(Parser* parser) {
     return parser->tokens[parser->current];
 }
 
+static Token* peek_at(Parser* parser, int offset) {
+    int idx = parser->current + offset;
+    if (idx < 0 || idx >= parser->token_count) return NULL;
+    return parser->tokens[idx];
+}
+
 static Token* previous(Parser* parser) {
     return parser->tokens[parser->current - 1];
 }
@@ -39,9 +45,7 @@ static bool is_at_end(Parser* parser) {
 }
 
 static Token* advance(Parser* parser) {
-    if (!is_at_end(parser)) {
-        parser->current++;
-    }
+    if (!is_at_end(parser)) parser->current++;
     return previous(parser);
 }
 
@@ -58,8 +62,12 @@ static bool match(Parser* parser, TokenType type) {
     return false;
 }
 
+static void skip_newlines(Parser* parser) {
+    while (check(parser, TOKEN_NEWLINE)) advance(parser);
+}
+
 static void parser_error(Parser* parser, const char* message) {
-    if (parser->had_error) return;  // First error wins; don't overwrite
+    if (parser->had_error) return;
     parser->had_error = true;
     Token* token = peek(parser);
     snprintf(parser->error_message, sizeof(parser->error_message),
@@ -71,14 +79,12 @@ static void parser_error(Parser* parser, const char* message) {
 }
 
 static Token* consume(Parser* parser, TokenType type, const char* message) {
-    if (check(parser, type)) {
-        return advance(parser);
-    }
+    if (check(parser, type)) return advance(parser);
     parser_error(parser, message);
     return NULL;
 }
 
-// ===== Forward declarations for the precedence chain =====
+// ===== Forward declarations =====
 
 static ASTNode* expression(Parser* parser);
 static ASTNode* equality(Parser* parser);
@@ -88,30 +94,29 @@ static ASTNode* factor(Parser* parser);
 static ASTNode* unary(Parser* parser);
 static ASTNode* primary(Parser* parser);
 
-// ===== Grammar (lowest to highest precedence) =====
+static ASTNode* statement(Parser* parser);
+static ASTNode* return_statement(Parser* parser);
+static ASTNode* assignment_statement(Parser* parser);
+static ASTNode* expression_statement(Parser* parser);
 
-// expression -> equality
+// ===== Expression grammar =====
+
 static ASTNode* expression(Parser* parser) {
     return equality(parser);
 }
 
-// equality -> comparison ( ( "==" | "!=" ) comparison )*
 static ASTNode* equality(Parser* parser) {
     ASTNode* left = comparison(parser);
     if (!left) return NULL;
     while (check(parser, TOKEN_EQUALS_EQUALS) || check(parser, TOKEN_NOT_EQUALS)) {
         Token* op = advance(parser);
         ASTNode* right = comparison(parser);
-        if (!right) {
-            ast_destroy(left);
-            return NULL;
-        }
+        if (!right) { ast_destroy(left); return NULL; }
         left = ast_binary(op->type, left, right, op->line, op->column);
     }
     return left;
 }
 
-// comparison -> term ( ( "<" | ">" | "<=" | ">=" ) term )*
 static ASTNode* comparison(Parser* parser) {
     ASTNode* left = term(parser);
     if (!left) return NULL;
@@ -119,32 +124,24 @@ static ASTNode* comparison(Parser* parser) {
            check(parser, TOKEN_LESS_EQUALS) || check(parser, TOKEN_GREATER_EQUALS)) {
         Token* op = advance(parser);
         ASTNode* right = term(parser);
-        if (!right) {
-            ast_destroy(left);
-            return NULL;
-        }
+        if (!right) { ast_destroy(left); return NULL; }
         left = ast_binary(op->type, left, right, op->line, op->column);
     }
     return left;
 }
 
-// term -> factor ( ( "+" | "-" ) factor )*
 static ASTNode* term(Parser* parser) {
     ASTNode* left = factor(parser);
     if (!left) return NULL;
     while (check(parser, TOKEN_PLUS) || check(parser, TOKEN_MINUS)) {
         Token* op = advance(parser);
         ASTNode* right = factor(parser);
-        if (!right) {
-            ast_destroy(left);
-            return NULL;
-        }
+        if (!right) { ast_destroy(left); return NULL; }
         left = ast_binary(op->type, left, right, op->line, op->column);
     }
     return left;
 }
 
-// factor -> unary ( ( "*" | "/" | "%" ) unary )*
 static ASTNode* factor(Parser* parser) {
     ASTNode* left = unary(parser);
     if (!left) return NULL;
@@ -152,28 +149,22 @@ static ASTNode* factor(Parser* parser) {
            check(parser, TOKEN_PERCENT)) {
         Token* op = advance(parser);
         ASTNode* right = unary(parser);
-        if (!right) {
-            ast_destroy(left);
-            return NULL;
-        }
+        if (!right) { ast_destroy(left); return NULL; }
         left = ast_binary(op->type, left, right, op->line, op->column);
     }
     return left;
 }
 
-// unary -> "-" unary | primary
 static ASTNode* unary(Parser* parser) {
     if (check(parser, TOKEN_MINUS)) {
         Token* op = advance(parser);
-        ASTNode* operand = unary(parser);  // Right-recursive: "- - x" => -(-x)
+        ASTNode* operand = unary(parser);
         if (!operand) return NULL;
         return ast_unary(op->type, operand, op->line, op->column);
     }
     return primary(parser);
 }
 
-// primary -> INT | FLOAT | STRING | TRUE | FALSE | NONE | IDENTIFIER
-//          | "(" expression ")"
 static ASTNode* primary(Parser* parser) {
     Token* token = peek(parser);
 
@@ -212,9 +203,84 @@ static ASTNode* primary(Parser* parser) {
     return NULL;
 }
 
+// ===== Statement grammar =====
+
+// statement -> return_statement | assignment_statement | expression_statement
+static ASTNode* statement(Parser* parser) {
+    if (check(parser, TOKEN_RETURN)) {
+        return return_statement(parser);
+    }
+    // Disambiguate assignment from expression by one-token lookahead.
+    // IDENTIFIER followed by EQUALS means assignment.
+    if (check(parser, TOKEN_IDENTIFIER)) {
+        Token* next = peek_at(parser, 1);
+        if (next && next->type == TOKEN_EQUALS) {
+            return assignment_statement(parser);
+        }
+    }
+    return expression_statement(parser);
+}
+
+// return_statement -> "return" expression? NEWLINE?
+static ASTNode* return_statement(Parser* parser) {
+    Token* return_token = advance(parser);  // Consume RETURN
+    ASTNode* value = NULL;
+    // If next is NEWLINE or EOF, it's a bare "return"
+    if (!check(parser, TOKEN_NEWLINE) && !is_at_end(parser)) {
+        value = expression(parser);
+        if (!value) return NULL;
+    }
+    match(parser, TOKEN_NEWLINE);
+    return ast_return(value, return_token->line, return_token->column);
+}
+
+// assignment_statement -> IDENTIFIER "=" expression NEWLINE?
+static ASTNode* assignment_statement(Parser* parser) {
+    Token* name_token = advance(parser);  // Consume IDENTIFIER
+    advance(parser);                      // Consume EQUALS (already verified by lookahead)
+    ASTNode* value = expression(parser);
+    if (!value) return NULL;
+    match(parser, TOKEN_NEWLINE);
+    ASTNode* target = ast_identifier(name_token->lexeme,
+                                     name_token->line, name_token->column);
+    return ast_assignment(target, value,
+                          name_token->line, name_token->column);
+}
+
+// expression_statement -> expression NEWLINE?
+static ASTNode* expression_statement(Parser* parser) {
+    Token* token = peek(parser);
+    ASTNode* expr = expression(parser);
+    if (!expr) return NULL;
+    match(parser, TOKEN_NEWLINE);
+    return ast_expression_stmt(expr, token->line, token->column);
+}
+
 // ===== Public API =====
 
 ASTNode* parser_parse_expression(Parser* parser) {
     if (!parser || parser->had_error) return NULL;
     return expression(parser);
+}
+
+ASTNode* parser_parse_module(Parser* parser) {
+    if (!parser || parser->had_error) return NULL;
+
+    Token* first = parser->tokens[0];
+    ASTNode* module = ast_module(first->line, first->column);
+    if (!module) return NULL;
+
+    skip_newlines(parser);
+    while (!is_at_end(parser) && !parser->had_error) {
+        ASTNode* stmt = statement(parser);
+        if (!stmt) break;
+        ast_module_add(module, stmt);
+        skip_newlines(parser);
+    }
+
+    if (parser->had_error) {
+        ast_destroy(module);
+        return NULL;
+    }
+    return module;
 }

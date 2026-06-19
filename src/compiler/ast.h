@@ -4,11 +4,8 @@
 
 #include "token.h"
 
-// Forward declaration so nodes can reference each other
 typedef struct ASTNode ASTNode;
 
-// Every node has one of these types. The tag tells you which member of
-// the union below is valid.
 typedef enum {
     // Expressions
     AST_LITERAL_INT,
@@ -17,50 +14,65 @@ typedef enum {
     AST_LITERAL_BOOL,
     AST_LITERAL_NONE,
     AST_IDENTIFIER,
-    AST_BINARY,        // left op right     (e.g., a + b)
-    AST_UNARY,         // op operand        (e.g., -x)
-    AST_GROUPING       // (expression)
+    AST_BINARY,
+    AST_UNARY,
+    AST_GROUPING,
+    // Statements
+    AST_EXPRESSION_STMT,
+    AST_ASSIGNMENT,
+    AST_RETURN,
+    // Top level
+    AST_MODULE
 } ASTNodeType;
 
-// Node-specific data lives in these structs, accessed via the union below
+// === Expression payloads ===
+
+typedef struct { long value; } ASTLiteralInt;
+typedef struct { double value; } ASTLiteralFloat;
+typedef struct { char* value; } ASTLiteralString;
+typedef struct { int value; } ASTLiteralBool;
+typedef struct { char* name; } ASTIdentifier;
 
 typedef struct {
-    long value;
-} ASTLiteralInt;
-
-typedef struct {
-    double value;
-} ASTLiteralFloat;
-
-typedef struct {
-    char* value;        // Owned by the node, freed on destroy
-} ASTLiteralString;
-
-typedef struct {
-    int value;          // 1 for True, 0 for False
-} ASTLiteralBool;
-
-typedef struct {
-    char* name;         // Owned by the node
-} ASTIdentifier;
-
-typedef struct {
-    TokenType op;       // The operator token type (e.g., TOKEN_PLUS)
-    ASTNode* left;      // Owned
-    ASTNode* right;     // Owned
+    TokenType op;
+    ASTNode* left;
+    ASTNode* right;
 } ASTBinary;
 
 typedef struct {
-    TokenType op;       // The operator token type (e.g., TOKEN_MINUS)
-    ASTNode* operand;   // Owned
+    TokenType op;
+    ASTNode* operand;
 } ASTUnary;
 
 typedef struct {
-    ASTNode* expression;  // Owned
+    ASTNode* expression;
 } ASTGrouping;
 
-// The actual node. Type tag plus union of all possible node payloads.
-// Line and column come from the originating token for error reporting.
+// === Statement payloads ===
+
+typedef struct {
+    ASTNode* expression;
+} ASTExpressionStmt;
+
+typedef struct {
+    ASTNode* target;       // For v1: must be AST_IDENTIFIER
+    ASTNode* value;
+} ASTAssignment;
+
+typedef struct {
+    ASTNode* value;        // Optional; NULL for bare "return"
+} ASTReturn;
+
+// === Module (top level) ===
+
+typedef struct {
+    ASTNode** statements;  // Dynamic array of owned statement nodes
+    int count;
+    int capacity;
+} ASTModule;
+
+// === The tagged union ===
+
 struct ASTNode {
     ASTNodeType type;
     int line;
@@ -74,12 +86,15 @@ struct ASTNode {
         ASTBinary binary;
         ASTUnary unary;
         ASTGrouping grouping;
-        // AST_LITERAL_NONE has no data
+        ASTExpressionStmt expression_stmt;
+        ASTAssignment assignment;
+        ASTReturn ret;     // 'return' is a C keyword; member is 'ret'
+        ASTModule module;
     } as;
 };
 
-// Constructor functions. Each takes the data and produces a heap-allocated
-// node. The caller owns the returned node and must destroy it.
+// === Expression constructors ===
+
 ASTNode* ast_literal_int(long value, int line, int column);
 ASTNode* ast_literal_float(double value, int line, int column);
 ASTNode* ast_literal_string(const char* value, int line, int column);
@@ -90,13 +105,21 @@ ASTNode* ast_binary(TokenType op, ASTNode* left, ASTNode* right, int line, int c
 ASTNode* ast_unary(TokenType op, ASTNode* operand, int line, int column);
 ASTNode* ast_grouping(ASTNode* expression, int line, int column);
 
-// Recursively destroy a node and all its children.
+// === Statement constructors ===
+
+ASTNode* ast_expression_stmt(ASTNode* expression, int line, int column);
+ASTNode* ast_assignment(ASTNode* target, ASTNode* value, int line, int column);
+ASTNode* ast_return(ASTNode* value, int line, int column);  // value may be NULL
+
+// === Module ===
+
+ASTNode* ast_module(int line, int column);
+void ast_module_add(ASTNode* module, ASTNode* statement);
+
+// === Lifecycle and debug ===
+
 void ast_destroy(ASTNode* node);
-
-// Pretty-print an AST to stdout. Indent should start at 0.
 void ast_print(ASTNode* node, int indent);
-
-// Convert a node type enum to a printable name (for debugging).
 const char* ast_node_type_to_string(ASTNodeType type);
 
 #endif // AST_H
