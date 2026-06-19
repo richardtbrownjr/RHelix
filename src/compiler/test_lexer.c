@@ -49,5 +49,14 @@ int main() {
     test_lexer("Pipeline",
         "data |> filter(x => x > 0) |> map(sqrt) |> sum()");
 
+    //Test 6: Nested blocks (partial dedent)
+    const char* nested_source =
+        "if True:\n"
+        "    if True:\n"
+        "        x = 1\n"
+        "    y = 2\n"
+        "z = 3\n";
+    test_lexer("Nested Blocks", nested_source);
+
     return 0;
 }

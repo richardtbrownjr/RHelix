@@ -46,6 +46,7 @@ typedef enum {
     TOKEN_GREATER_EQUALS,
     TOKEN_ARROW,        // ->
     TOKEN_PIPE,         // |>
+    TOKEN_FAT_ARROW,    // =>
 
     // Delimiters
     TOKEN_LPAREN,

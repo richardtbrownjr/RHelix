@@ -2,17 +2,20 @@
 #ifndef LEXER_H
 #define LEXER_H
 
+#include <stdbool.h>
 #include "token.h"
 
 typedef struct {
-    const char* source;     // Source code
-    const char* current;    // Current position
+    const char* source;       // Source code
+    const char* current;      // Current position
     int line;
     int column;
-    int indent_level;       // For Python-like indentation
-    int* indent_stack;      // Stack of indentation levels
+    int indent_level;         // For Python-like indentation
+    int* indent_stack;        // Stack of indentation levels
     int indent_stack_top;
     int indent_stack_size;
+    bool at_line_start;       // True after a newline; triggers indent check
+    int pending_dedents;      // Queued DEDENTs for multi-level dedent
 } Lexer;
 
 // Lexer creation and destruction

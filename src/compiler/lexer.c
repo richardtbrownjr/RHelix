@@ -44,11 +44,15 @@ Lexer* lexer_create(const char* source) {
     lexer->column = 1;
     lexer->indent_level = 0;
 
-    // Initialize indent stack
+    // Initialize indent stack with base level 0
     lexer->indent_stack_size = 32;
     lexer->indent_stack = (int*)malloc(sizeof(int) * lexer->indent_stack_size);
     lexer->indent_stack[0] = 0;
     lexer->indent_stack_top = 0;
+
+    // Start of file counts as start of a line
+    lexer->at_line_start = true;
+    lexer->pending_dedents = 0;
 
     return lexer;
 }
@@ -98,7 +102,7 @@ static void skip_whitespace(Lexer* lexer) {
         if (c == ' ' || c == '\r' || c == '\t') {
             advance(lexer);
         } else if (c == '#') {
-            // Skip comment
+            // Skip comment to end of line (but not the newline itself)
             while (peek(lexer) != '\n' && !is_at_end(lexer)) {
                 advance(lexer);
             }
@@ -106,6 +110,59 @@ static void skip_whitespace(Lexer* lexer) {
             break;
         }
     }
+}
+
+// Measure indentation at line start and emit INDENT/DEDENT as needed.
+// Returns NULL if no indent token should be emitted (same level, blank line,
+// or comment-only line). Advances lexer past the leading whitespace.
+static Token* check_indentation(Lexer* lexer) {
+    int indent = 0;
+    while (peek(lexer) == ' ' || peek(lexer) == '\t') {
+        indent++;
+        advance(lexer);
+    }
+
+    // Blank line or comment-only line: don't change indentation state
+    char c = peek(lexer);
+    if (c == '\n' || c == '#' || c == '\0') {
+        return NULL;
+    }
+
+    int current_level = lexer->indent_stack[lexer->indent_stack_top];
+
+    if (indent > current_level) {
+        // Push new level, emit single INDENT
+        lexer->indent_stack_top++;
+        if (lexer->indent_stack_top >= lexer->indent_stack_size) {
+            lexer->indent_stack_size *= 2;
+            lexer->indent_stack = (int*)realloc(
+                lexer->indent_stack,
+                sizeof(int) * lexer->indent_stack_size
+            );
+        }
+        lexer->indent_stack[lexer->indent_stack_top] = indent;
+        return token_create(TOKEN_INDENT, "", lexer->line, lexer->column);
+    }
+
+    if (indent < current_level) {
+        // Pop until we match. Count dedents emitted.
+        int dedents = 0;
+        while (lexer->indent_stack_top > 0 &&
+               lexer->indent_stack[lexer->indent_stack_top] > indent) {
+            lexer->indent_stack_top--;
+            dedents++;
+        }
+        if (lexer->indent_stack[lexer->indent_stack_top] != indent) {
+            return token_create(TOKEN_ERROR, "Inconsistent indentation",
+                                lexer->line, lexer->column);
+        }
+        // Emit one DEDENT now; queue the rest
+        lexer->pending_dedents = dedents - 1;
+        return token_create(TOKEN_DEDENT, "", lexer->line, lexer->column);
+    }
+
+    // Same indent level: no token
+    return NULL;
 }
 
 static Token* make_token(Lexer* lexer, TokenType type, const char* start) {
@@ -200,9 +257,30 @@ static Token* read_identifier(Lexer* lexer) {
 }
 
 Token* lexer_next_token(Lexer* lexer) {
+    // 1. Emit any queued DEDENT tokens from a multi-level dedent
+    if (lexer->pending_dedents > 0) {
+        lexer->pending_dedents--;
+        return token_create(TOKEN_DEDENT, "", lexer->line, lexer->column);
+    }
+
+    // 2. At the start of a logical line, check indentation before anything else
+    if (lexer->at_line_start && !is_at_end(lexer)) {
+        lexer->at_line_start = false;
+        Token* indent_token = check_indentation(lexer);
+        if (indent_token != NULL) {
+            return indent_token;
+        }
+    }
+
+    // 3. Skip non-indentation whitespace and comments
     skip_whitespace(lexer);
 
+    // 4. At EOF, close any remaining open blocks before emitting EOF
     if (is_at_end(lexer)) {
+        if (lexer->indent_stack_top > 0) {
+            lexer->indent_stack_top--;
+            return token_create(TOKEN_DEDENT, "", lexer->line, lexer->column);
+        }
         return token_create(TOKEN_EOF, "", lexer->line, lexer->column);
     }
 
@@ -238,6 +316,9 @@ Token* lexer_next_token(Lexer* lexer) {
             if (match(lexer, '=')) {
                 return make_token(lexer, TOKEN_EQUALS_EQUALS, start);
             }
+            if (match(lexer, '>')) {
+                return make_token(lexer, TOKEN_FAT_ARROW, start);
+            }
             return make_token(lexer, TOKEN_EQUALS, start);
 
         case '!':
@@ -270,7 +351,8 @@ Token* lexer_next_token(Lexer* lexer) {
             return read_string(lexer);
 
         case '\n':
-            // Handle newlines for Python-like syntax
+            // Newline ends a logical line; next token call will check indentation
+            lexer->at_line_start = true;
             return make_token(lexer, TOKEN_NEWLINE, start);
     }
 

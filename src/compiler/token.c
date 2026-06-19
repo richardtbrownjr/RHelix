@@ -72,6 +72,7 @@ const char* token_type_to_string(TokenType type) {
         case TOKEN_GREATER_EQUALS: return "GREATER_EQUALS";
         case TOKEN_ARROW: return "ARROW";
         case TOKEN_PIPE: return "PIPE";
+        case TOKEN_FAT_ARROW: return "FAT_ARROW";
 
         // Delimiters
         case TOKEN_LPAREN: return "LPAREN";
