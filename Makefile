@@ -15,11 +15,12 @@ RUNTIME_OBJS = $(BUILD_DIR)/memory_manager.o
 RUNTIME_TEST_SRC = $(RUNTIME_DIR)/test_memory.c
 
 # Compiler files
-COMPILER_SRCS = $(COMPILER_DIR)/token.c $(COMPILER_DIR)/lexer.c
-COMPILER_OBJS = $(BUILD_DIR)/token.o $(BUILD_DIR)/lexer.o
+COMPILER_SRCS = $(COMPILER_DIR)/token.c $(COMPILER_DIR)/lexer.c $(COMPILER_DIR)/ast.c $(COMPILER_DIR)/parser.c
+COMPILER_OBJS = $(BUILD_DIR)/token.o $(BUILD_DIR)/lexer.o $(BUILD_DIR)/ast.o $(BUILD_DIR)/parser.o
 LEXER_TEST_SRC = $(COMPILER_DIR)/test_lexer.c
+PARSER_TEST_SRC = $(COMPILER_DIR)/test_parser.c
 
-.PHONY: all clean test test-lexer runtime compiler
+.PHONY: all clean test test-lexer test-parser runtime compiler
 
 all: runtime compiler
 
@@ -34,6 +35,12 @@ $(BUILD_DIR)/token.o: $(COMPILER_DIR)/token.c | $(BUILD_DIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(BUILD_DIR)/lexer.o: $(COMPILER_DIR)/lexer.c | $(BUILD_DIR)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(BUILD_DIR)/ast.o: $(COMPILER_DIR)/ast.c | $(BUILD_DIR)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(BUILD_DIR)/parser.o: $(COMPILER_DIR)/parser.c | $(BUILD_DIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # Library targets
@@ -53,6 +60,10 @@ test: | $(BUILD_DIR)
 test-lexer: | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(COMPILER_SRCS) $(LEXER_TEST_SRC) -o $(BUILD_DIR)/test_lexer
 	./$(BUILD_DIR)/test_lexer
+
+test-parser: | $(BUILD_DIR)
+	$(CC) $(CFLAGS) $(COMPILER_SRCS) $(PARSER_TEST_SRC) -o $(BUILD_DIR)/test_parser
+	./$(BUILD_DIR)/test_parser
 
 clean:
 	rm -rf $(BUILD_DIR)/*

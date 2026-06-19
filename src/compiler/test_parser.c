@@ -1,0 +1,78 @@
+// test_parser.c - Test suite for the RHelix parser
+#include "parser.h"
+#include "lexer.h"
+#include "ast.h"
+#include <stdio.h>
+#include <stdlib.h>
+
+static void test_parser_case(const char* name, const char* source) {
+    printf("\n=== Testing: %s ===\n", name);
+    printf("Source: %s\n", source);
+
+    int token_count;
+    Token** tokens = lexer_tokenize(source, &token_count);
+    if (!tokens) {
+        printf("Lexer failed\n");
+        return;
+    }
+
+    Parser* parser = parser_create(tokens, token_count);
+    ASTNode* ast = parser_parse_expression(parser);
+
+    if (parser->had_error) {
+        printf("Error: %s\n", parser->error_message);
+    } else if (ast) {
+        printf("AST:\n");
+        ast_print(ast, 1);
+    } else {
+        printf("(no AST returned, no error reported)\n");
+    }
+
+    if (ast) ast_destroy(ast);
+    parser_destroy(parser);
+    for (int i = 0; i < token_count; i++) {
+        token_destroy(tokens[i]);
+    }
+    free(tokens);
+}
+
+int main(void) {
+    printf("RHelix Parser Test Suite\n");
+
+    // ===== Literals =====
+    test_parser_case("Integer literal", "42");
+    test_parser_case("Float literal", "3.14");
+    test_parser_case("String literal", "\"hello\"");
+    test_parser_case("True literal", "True");
+    test_parser_case("False literal", "False");
+    test_parser_case("None literal", "None");
+    test_parser_case("Identifier", "x");
+
+    // ===== Operator precedence (the big proof) =====
+    test_parser_case("Addition", "1 + 2");
+    test_parser_case("Multiplication binds tighter than addition", "2 + 3 * 4");
+    test_parser_case("Parens override precedence", "(2 + 3) * 4");
+
+    // ===== Associativity =====
+    test_parser_case("Subtraction is left-associative", "10 - 3 - 2");
+    test_parser_case("Unary is right-associative", "--5");
+
+    // ===== Comparison and equality =====
+    test_parser_case("Comparison", "x > 0");
+    test_parser_case("Equality", "42 == 42");
+    test_parser_case("Comparison binds tighter than equality", "x > 0 == True");
+
+    // ===== Unary =====
+    test_parser_case("Unary minus on identifier", "-x");
+    test_parser_case("Unary minus on grouped expression", "-(x + y)");
+
+    // ===== Mixed =====
+    test_parser_case("Mixed precedence", "1 + 2 * 3 - 4 / 2");
+
+    // ===== Error cases =====
+    test_parser_case("Missing right operand", "42 +");
+    test_parser_case("Missing closing paren", "(1 + 2");
+    test_parser_case("Just a stray operator", "+");
+
+    return 0;
+}
