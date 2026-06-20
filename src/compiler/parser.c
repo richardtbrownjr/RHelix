@@ -103,6 +103,7 @@ static ASTNode* block(Parser* parser);
 static ASTNode* if_statement(Parser* parser);
 static ASTNode* while_statement(Parser* parser);
 static ASTNode* for_statement(Parser* parser);
+static ASTNode* function_def_statement(Parser* parser);
 
 // ===== Expression grammar =====
 
@@ -255,8 +256,9 @@ static ASTNode* primary(Parser* parser) {
 
 // ===== Statement grammar =====
 
-// statement -> if | while | for | return | assignment | expression_stmt
+// statement -> def | if | while | for | return | assignment | expression_stmt
 static ASTNode* statement(Parser* parser) {
+    if (check(parser, TOKEN_DEF))    return function_def_statement(parser);
     if (check(parser, TOKEN_IF))     return if_statement(parser);
     if (check(parser, TOKEN_WHILE))  return while_statement(parser);
     if (check(parser, TOKEN_FOR))    return for_statement(parser);
@@ -436,6 +438,114 @@ static ASTNode* for_statement(Parser* parser) {
 
     return ast_for(var_token->lexeme, iterable, body,
                    for_token->line, for_token->column);
+}
+
+// Helper: parse a single parameter "IDENT ( : IDENT )?"
+// On success, *out_name owns a strdup'd name and *out_type owns an identifier
+// node (or NULL). On failure, *out_name and *out_type are NULL.
+static bool parse_param(Parser* parser, char** out_name, ASTNode** out_type) {
+    *out_name = NULL;
+    *out_type = NULL;
+    if (!check(parser, TOKEN_IDENTIFIER)) {
+        parser_error(parser, "Expected parameter name");
+        return false;
+    }
+    Token* name_tok = advance(parser);
+    *out_name = strdup(name_tok->lexeme);
+
+    if (match(parser, TOKEN_COLON)) {
+        if (!check(parser, TOKEN_IDENTIFIER)) {
+            parser_error(parser, "Expected type after ':'");
+            free(*out_name);
+            *out_name = NULL;
+            return false;
+        }
+        Token* type_tok = advance(parser);
+        *out_type = ast_identifier(type_tok->lexeme,
+                                   type_tok->line, type_tok->column);
+    }
+    return true;
+}
+
+// function_def_statement -> "def" IDENT "(" params? ")" ( "->" IDENT )?
+//                           ":" NEWLINE block
+// params -> param ( "," param )*
+// param  -> IDENT ( ":" IDENT )?
+static ASTNode* function_def_statement(Parser* parser) {
+    Token* def_token = advance(parser);  // Consume DEF
+
+    if (!check(parser, TOKEN_IDENTIFIER)) {
+        parser_error(parser, "Expected function name after 'def'");
+        return NULL;
+    }
+    Token* name_token = advance(parser);
+
+    if (!consume(parser, TOKEN_LPAREN, "Expected '(' after function name")) {
+        return NULL;
+    }
+
+    // Build the FunctionDef node early so ast_destroy handles cleanup on any
+    // error path below. body and return_type stay NULL until parsed.
+    ASTNode* func = ast_function_def(name_token->lexeme, NULL, NULL,
+                                     def_token->line, def_token->column);
+    if (!func) return NULL;
+
+    // Parameter list (possibly empty)
+    if (!check(parser, TOKEN_RPAREN)) {
+        char* p_name;
+        ASTNode* p_type;
+        if (!parse_param(parser, &p_name, &p_type)) {
+            ast_destroy(func);
+            return NULL;
+        }
+        ast_function_def_add_param(func, p_name, p_type);
+        free(p_name);  // add_param strdup's; free our local copy
+
+        while (check(parser, TOKEN_COMMA)) {
+            advance(parser);  // consume ,
+            if (!parse_param(parser, &p_name, &p_type)) {
+                ast_destroy(func);
+                return NULL;
+            }
+            ast_function_def_add_param(func, p_name, p_type);
+            free(p_name);
+        }
+    }
+
+    if (!consume(parser, TOKEN_RPAREN, "Expected ')' after parameters")) {
+        ast_destroy(func);
+        return NULL;
+    }
+
+    // Optional return type annotation
+    if (match(parser, TOKEN_ARROW)) {
+        if (!check(parser, TOKEN_IDENTIFIER)) {
+            parser_error(parser, "Expected return type after '->'");
+            ast_destroy(func);
+            return NULL;
+        }
+        Token* ret_tok = advance(parser);
+        func->as.function_def.return_type =
+            ast_identifier(ret_tok->lexeme, ret_tok->line, ret_tok->column);
+    }
+
+    if (!consume(parser, TOKEN_COLON, "Expected ':' after function signature")) {
+        ast_destroy(func);
+        return NULL;
+    }
+    if (!consume(parser, TOKEN_NEWLINE, "Expected newline after ':'")) {
+        ast_destroy(func);
+        return NULL;
+    }
+
+    ASTNode* body = block(parser);
+    if (!body) {
+        ast_destroy(func);
+        return NULL;
+    }
+    func->as.function_def.body = body;
+
+    return func;
 }
 
 // ===== Public API =====

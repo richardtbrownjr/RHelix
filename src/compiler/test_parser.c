@@ -228,6 +228,69 @@ int main(void) {
         test_module_case("Error: for without identifier",
             "for in items:\n"
             "    x = i\n");
+            // ===== Function declarations =====
+        printf("\n\n========== FUNCTION DECLARATION TESTS ==========\n");
+
+        test_module_case("Zero-param def",
+            "def hello():\n"
+            "    return 1\n");
+
+        test_module_case("Single-param def",
+            "def square(x):\n"
+            "    return x * x\n");
+
+        test_module_case("Multi-param def",
+            "def add(x, y):\n"
+            "    return x + y\n");
+
+        test_module_case("Def with type annotations",
+            "def add(x: int, y: int):\n"
+            "    return x + y\n");
+
+        test_module_case("Def with return type",
+            "def add(x, y) -> int:\n"
+            "    return x + y\n");
+
+        test_module_case("Def with param types and return type",
+            "def add(x: int, y: int) -> int:\n"
+            "    return x + y\n");
+
+        // SESSION PROOF POINT: recursive function with full signature
+        test_module_case("Recursive fibonacci (session proof point)",
+            "def fibonacci(n: int) -> int:\n"
+            "    if n < 2:\n"
+            "        return n\n"
+            "    return fibonacci(n - 1) + fibonacci(n - 2)\n");
+
+        test_module_case("Def followed by other statements",
+            "def double(x):\n"
+            "    return x * 2\n"
+            "result = double(5)\n");
+
+        // Error cases
+        test_module_case("Error: missing function name",
+            "def ():\n"
+            "    return 1\n");
+
+        test_module_case("Error: missing opening paren",
+            "def foo:\n"
+            "    return 1\n");
+
+        test_module_case("Error: missing colon",
+            "def foo()\n"
+            "    return 1\n");
+
+        test_module_case("Error: malformed param (comma at start)",
+            "def foo(,):\n"
+            "    return 1\n");
+
+        test_module_case("Error: type annotation missing type",
+            "def foo(x: ):\n"
+            "    return 1\n");
+
+        test_module_case("Error: arrow but no return type",
+            "def foo() ->:\n"
+            "    return 1\n");
 
     return 0;
 }

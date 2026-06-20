@@ -27,6 +27,8 @@ typedef enum {
     AST_IF,
     AST_WHILE,
     AST_FOR,
+    // Declarations
+    AST_FUNCTION_DEF,
     // Top level
     AST_MODULE
 } ASTNodeType;
@@ -96,10 +98,27 @@ typedef struct {
 } ASTWhile;
 
 typedef struct {
-    char* var_name;        // Loop variable (simple identifier for v1)
-    ASTNode* iterable;     // Expression being iterated
-    ASTNode* body;         // AST_BLOCK
+    char* var_name;
+    ASTNode* iterable;
+    ASTNode* body;
 } ASTFor;
+
+// === Declaration payloads ===
+
+// Param is NOT a separate AST node, just structured data inside a FunctionDef.
+typedef struct {
+    char* name;
+    ASTNode* type_annotation;  // Optional; NULL if no type given
+} ASTParam;
+
+typedef struct {
+    char* name;
+    ASTParam* params;          // Dynamic array of param structs
+    int param_count;
+    int param_capacity;
+    ASTNode* return_type;      // Optional; NULL if no -> annotation given
+    ASTNode* body;             // AST_BLOCK
+} ASTFunctionDef;
 
 // === Module ===
 
@@ -132,6 +151,7 @@ struct ASTNode {
         ASTIf if_stmt;
         ASTWhile while_stmt;
         ASTFor for_stmt;
+        ASTFunctionDef function_def;
         ASTModule module;
     } as;
 };
@@ -165,6 +185,15 @@ ASTNode* ast_if(ASTNode* condition, ASTNode* then_block, ASTNode* else_block,
 ASTNode* ast_while(ASTNode* condition, ASTNode* body, int line, int column);
 ASTNode* ast_for(const char* var_name, ASTNode* iterable, ASTNode* body,
                  int line, int column);
+
+// === Declaration constructors ===
+
+// Create a FunctionDef with no params; add them via the helper below.
+ASTNode* ast_function_def(const char* name, ASTNode* return_type,
+                          ASTNode* body, int line, int column);
+// type_annotation may be NULL if the param has no type
+void ast_function_def_add_param(ASTNode* func_def, const char* param_name,
+                                ASTNode* type_annotation);
 
 // === Module ===
 

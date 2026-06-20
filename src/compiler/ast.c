@@ -173,6 +173,35 @@ ASTNode* ast_for(const char* var_name, ASTNode* iterable, ASTNode* body,
     return node;
 }
 
+// ===== Declaration constructors =====
+
+ASTNode* ast_function_def(const char* name, ASTNode* return_type,
+                          ASTNode* body, int line, int column) {
+    ASTNode* node = make_node(AST_FUNCTION_DEF, line, column);
+    if (!node) return NULL;
+    node->as.function_def.name = name ? strdup(name) : NULL;
+    node->as.function_def.params = NULL;
+    node->as.function_def.param_count = 0;
+    node->as.function_def.param_capacity = 0;
+    node->as.function_def.return_type = return_type;
+    node->as.function_def.body = body;
+    return node;
+}
+
+void ast_function_def_add_param(ASTNode* func_def, const char* param_name,
+                                ASTNode* type_annotation) {
+    if (!func_def || func_def->type != AST_FUNCTION_DEF || !param_name) return;
+    ASTFunctionDef* f = &func_def->as.function_def;
+    if (f->param_count >= f->param_capacity) {
+        int new_cap = f->param_capacity == 0 ? 4 : f->param_capacity * 2;
+        f->params = (ASTParam*)realloc(f->params, sizeof(ASTParam) * new_cap);
+        f->param_capacity = new_cap;
+    }
+    f->params[f->param_count].name = strdup(param_name);
+    f->params[f->param_count].type_annotation = type_annotation;
+    f->param_count++;
+}
+
 // ===== Module =====
 
 ASTNode* ast_module(int line, int column) {
@@ -259,6 +288,20 @@ void ast_destroy(ASTNode* node) {
             ast_destroy(node->as.for_stmt.iterable);
             ast_destroy(node->as.for_stmt.body);
             break;
+        case AST_FUNCTION_DEF:
+            free(node->as.function_def.name);
+            for (int i = 0; i < node->as.function_def.param_count; i++) {
+                free(node->as.function_def.params[i].name);
+                if (node->as.function_def.params[i].type_annotation) {
+                    ast_destroy(node->as.function_def.params[i].type_annotation);
+                }
+            }
+            free(node->as.function_def.params);
+            if (node->as.function_def.return_type) {
+                ast_destroy(node->as.function_def.return_type);
+            }
+            ast_destroy(node->as.function_def.body);
+            break;
         case AST_MODULE:
             for (int i = 0; i < node->as.module.count; i++) {
                 ast_destroy(node->as.module.statements[i]);
@@ -291,6 +334,7 @@ const char* ast_node_type_to_string(ASTNodeType type) {
         case AST_IF: return "If";
         case AST_WHILE: return "While";
         case AST_FOR: return "For";
+        case AST_FUNCTION_DEF: return "FunctionDef";
         case AST_MODULE: return "Module";
         default: return "UNKNOWN";
     }
@@ -412,6 +456,30 @@ void ast_print(ASTNode* node, int indent) {
             print_indent(indent + 1);
             printf("Body:\n");
             ast_print(node->as.for_stmt.body, indent + 2);
+            break;
+        case AST_FUNCTION_DEF:
+            printf("FunctionDef(%s)\n",
+                   node->as.function_def.name ? node->as.function_def.name : "");
+            print_indent(indent + 1);
+            printf("Params(%d):\n", node->as.function_def.param_count);
+            for (int i = 0; i < node->as.function_def.param_count; i++) {
+                print_indent(indent + 2);
+                printf("Param(%s)\n", node->as.function_def.params[i].name);
+                if (node->as.function_def.params[i].type_annotation) {
+                    print_indent(indent + 3);
+                    printf("Type:\n");
+                    ast_print(node->as.function_def.params[i].type_annotation,
+                              indent + 4);
+                }
+            }
+            if (node->as.function_def.return_type) {
+                print_indent(indent + 1);
+                printf("ReturnType:\n");
+                ast_print(node->as.function_def.return_type, indent + 2);
+            }
+            print_indent(indent + 1);
+            printf("Body:\n");
+            ast_print(node->as.function_def.body, indent + 2);
             break;
         case AST_MODULE:
             printf("Module(%d statements)\n", node->as.module.count);
