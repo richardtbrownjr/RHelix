@@ -348,6 +348,75 @@ int main(void) {
         test_parser_case("Error: missing close bracket", "arr[0");
         test_parser_case("Error: dot with no identifier", "obj.");
         test_parser_case("Error: dot followed by number", "obj.123");
+
+        // ===== Class declarations =====
+    printf("\n\n========== CLASS DECLARATION TESTS ==========\n");
+
+    test_module_case("Class with single method",
+        "class Counter:\n"
+        "    def increment(self):\n"
+        "        return self.value + 1\n");
+
+    test_module_case("Class with multiple methods",
+        "class Counter:\n"
+        "    def increment(self):\n"
+        "        return self.value + 1\n"
+        "    def get(self):\n"
+        "        return self.value\n");
+
+    test_module_case("Class with class-level attribute",
+        "class Config:\n"
+        "    default_size = 100\n");
+
+    test_module_case("Class with attributes and methods mixed",
+        "class Point:\n"
+        "    dimensions = 2\n"
+        "    def get_x(self):\n"
+        "        return self.x\n"
+        "    def get_y(self):\n"
+        "        return self.y\n");
+
+    test_module_case("Class with method using self and control flow",
+        "class Validator:\n"
+        "    def check(self, value):\n"
+        "        if value > 0:\n"
+        "            return True\n"
+        "        return False\n");
+
+    // SESSION PROOF POINT: class + instantiation + method call
+    test_module_case("Class definition and usage (session proof point)",
+        "class Counter:\n"
+        "    def increment(self):\n"
+        "        return self.value + 1\n"
+        "    def get(self):\n"
+        "        return self.value\n"
+        "c = Counter()\n"
+        "result = c.increment()\n");
+
+    test_module_case("Multiple classes in same module",
+        "class Animal:\n"
+        "    def speak(self):\n"
+        "        return self.sound\n"
+        "class Counter:\n"
+        "    def tick(self):\n"
+        "        return self.n + 1\n");
+
+    test_module_case("Class with typed method (combining features)",
+        "class Calculator:\n"
+        "    def add(self, x: int, y: int) -> int:\n"
+        "        return x + y\n");
+
+    // Error cases
+    test_module_case("Error: missing class name",
+        "class :\n"
+        "    x = 1\n");
+
+    test_module_case("Error: missing colon",
+        "class Foo\n"
+        "    x = 1\n");
+
+    test_module_case("Error: missing class body",
+        "class Foo:\n");
         
 
     return 0;

@@ -218,6 +218,14 @@ void ast_function_def_add_param(ASTNode* func_def, const char* param_name,
     f->param_count++;
 }
 
+ASTNode* ast_class_def(const char* name, ASTNode* body, int line, int column) {
+    ASTNode* node = make_node(AST_CLASS_DEF, line, column);
+    if (!node) return NULL;
+    node->as.class_def.name = name ? strdup(name) : NULL;
+    node->as.class_def.body = body;
+    return node;
+}
+
 // ===== Module =====
 
 ASTNode* ast_module(int line, int column) {
@@ -326,6 +334,10 @@ void ast_destroy(ASTNode* node) {
             }
             ast_destroy(node->as.function_def.body);
             break;
+        case AST_CLASS_DEF:
+            free(node->as.class_def.name);
+            ast_destroy(node->as.class_def.body);
+            break;
         case AST_MODULE:
             for (int i = 0; i < node->as.module.count; i++) {
                 ast_destroy(node->as.module.statements[i]);
@@ -361,6 +373,7 @@ const char* ast_node_type_to_string(ASTNodeType type) {
         case AST_WHILE: return "While";
         case AST_FOR: return "For";
         case AST_FUNCTION_DEF: return "FunctionDef";
+        case AST_CLASS_DEF: return "ClassDef";
         case AST_MODULE: return "Module";
         default: return "UNKNOWN";
     }
@@ -522,6 +535,13 @@ void ast_print(ASTNode* node, int indent) {
             print_indent(indent + 1);
             printf("Body:\n");
             ast_print(node->as.function_def.body, indent + 2);
+            break;
+        case AST_CLASS_DEF:
+            printf("ClassDef(%s)\n",
+                   node->as.class_def.name ? node->as.class_def.name : "");
+            print_indent(indent + 1);
+            printf("Body:\n");
+            ast_print(node->as.class_def.body, indent + 2);
             break;
         case AST_MODULE:
             printf("Module(%d statements)\n", node->as.module.count);

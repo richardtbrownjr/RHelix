@@ -104,6 +104,7 @@ static ASTNode* if_statement(Parser* parser);
 static ASTNode* while_statement(Parser* parser);
 static ASTNode* for_statement(Parser* parser);
 static ASTNode* function_def_statement(Parser* parser);
+static ASTNode* class_def_statement(Parser* parser);
 
 // ===== Expression grammar =====
 
@@ -172,12 +173,6 @@ static ASTNode* unary(Parser* parser) {
 }
 
 // call -> primary ( "(" arguments? ")" | "[" expression "]" | "." IDENT )*
-// arguments -> expression ( "," expression )*
-//
-// The postfix loop handles call, subscript, and attribute access uniformly:
-// each branch wraps the current `expr` in a new node and loops. Chains like
-// `obj.field[0]()` fall out naturally because the loop keeps wrapping
-// whatever expression it's holding onto.
 static ASTNode* call(Parser* parser) {
     ASTNode* expr = primary(parser);
     if (!expr) return NULL;
@@ -306,8 +301,9 @@ static ASTNode* primary(Parser* parser) {
 
 // ===== Statement grammar =====
 
-// statement -> def | if | while | for | return | assignment | expression_stmt
+// statement -> class | def | if | while | for | return | assignment | expression_stmt
 static ASTNode* statement(Parser* parser) {
+    if (check(parser, TOKEN_CLASS))  return class_def_statement(parser);
     if (check(parser, TOKEN_DEF))    return function_def_statement(parser);
     if (check(parser, TOKEN_IF))     return if_statement(parser);
     if (check(parser, TOKEN_WHILE))  return while_statement(parser);
@@ -491,8 +487,6 @@ static ASTNode* for_statement(Parser* parser) {
 }
 
 // Helper: parse a single parameter "IDENT ( : IDENT )?"
-// On success, *out_name owns a strdup'd name and *out_type owns an identifier
-// node (or NULL). On failure, *out_name and *out_type are NULL.
 static bool parse_param(Parser* parser, char** out_name, ASTNode** out_type) {
     *out_name = NULL;
     *out_type = NULL;
@@ -590,6 +584,36 @@ static ASTNode* function_def_statement(Parser* parser) {
     func->as.function_def.body = body;
 
     return func;
+}
+
+// class_def_statement -> "class" IDENT ":" NEWLINE block
+//
+// Class bodies are just blocks. The block parser already loops on statement(),
+// which already dispatches def -> function_def_statement. So class bodies
+// containing methods work without any new code. Class-level attribute
+// assignments work for the same reason - they parse as ordinary Assignment
+// nodes inside the body block.
+static ASTNode* class_def_statement(Parser* parser) {
+    Token* class_token = advance(parser);  // Consume CLASS
+
+    if (!check(parser, TOKEN_IDENTIFIER)) {
+        parser_error(parser, "Expected class name after 'class'");
+        return NULL;
+    }
+    Token* name_token = advance(parser);
+
+    if (!consume(parser, TOKEN_COLON, "Expected ':' after class name")) {
+        return NULL;
+    }
+    if (!consume(parser, TOKEN_NEWLINE, "Expected newline after ':'")) {
+        return NULL;
+    }
+
+    ASTNode* body = block(parser);
+    if (!body) return NULL;
+
+    return ast_class_def(name_token->lexeme, body,
+                         class_token->line, class_token->column);
 }
 
 // ===== Public API =====

@@ -31,6 +31,7 @@ typedef enum {
     AST_FOR,
     // Declarations
     AST_FUNCTION_DEF,
+    AST_CLASS_DEF,
     // Top level
     AST_MODULE
 } ASTNodeType;
@@ -72,7 +73,7 @@ typedef struct {
 
 typedef struct {
     ASTNode* object;
-    char* name;          // Owned by the node
+    char* name;
 } ASTAttribute;
 
 // === Simple statement payloads ===
@@ -131,6 +132,11 @@ typedef struct {
     ASTNode* body;
 } ASTFunctionDef;
 
+typedef struct {
+    char* name;
+    ASTNode* body;        // AST_BLOCK
+} ASTClassDef;
+
 // === Module ===
 
 typedef struct {
@@ -165,6 +171,7 @@ struct ASTNode {
         ASTWhile while_stmt;
         ASTFor for_stmt;
         ASTFunctionDef function_def;
+        ASTClassDef class_def;
         ASTModule module;
     } as;
 };
@@ -207,6 +214,7 @@ ASTNode* ast_function_def(const char* name, ASTNode* return_type,
                           ASTNode* body, int line, int column);
 void ast_function_def_add_param(ASTNode* func_def, const char* param_name,
                                 ASTNode* type_annotation);
+ASTNode* ast_class_def(const char* name, ASTNode* body, int line, int column);
 
 // === Module ===
 
