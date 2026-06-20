@@ -291,6 +291,64 @@ int main(void) {
         test_module_case("Error: arrow but no return type",
             "def foo() ->:\n"
             "    return 1\n");
+            // ===== Subscripts and attribute access =====
+        printf("\n\n========== SUBSCRIPT & ATTRIBUTE TESTS ==========\n");
+
+        // Subscripts
+        test_parser_case("Simple subscript", "arr[0]");
+        test_parser_case("Subscript with expression index", "arr[i + 1]");
+        test_parser_case("Chained subscript (2D)", "grid[i][j]");
+        test_parser_case("Subscript with call as index", "arr[len(x)]");
+
+        // Attributes
+        test_parser_case("Simple attribute", "obj.field");
+        test_parser_case("Chained attribute", "obj.field.subfield");
+        test_parser_case("Attribute then call", "obj.method()");
+        test_parser_case("Attribute then call with args", "obj.method(1, 2)");
+
+        // Mixed chains
+        test_parser_case("Subscript then attribute", "arr[0].name");
+        test_parser_case("Attribute then subscript", "obj.items[0]");
+        test_parser_case("Call then attribute", "build().result");
+        test_parser_case("Call then subscript", "make_list()[0]");
+
+        // SESSION PROOF POINT: four postfix wrappers in one expression
+        test_parser_case("Mixed chain proof point",
+                         "obj.method(arg).field[0]");
+
+        test_parser_case("Realistic data access",
+                         "data[key].process(value)");
+
+        // Subscripts and attributes inside statements
+        test_module_case("Subscript in assignment value",
+            "x = grid[i][j]\n");
+
+        test_module_case("Attribute in assignment value",
+            "name = user.profile.name\n");
+
+        test_module_case("Subscript in return",
+            "def first(items):\n"
+            "    return items[0]\n");
+
+        test_module_case("Attribute in return",
+            "def get_name(user):\n"
+            "    return user.name\n");
+
+        test_module_case("Mixed access in function body",
+            "def process(records):\n"
+            "    first = records[0].value\n"
+            "    return first.transform(records[1].config)\n");
+
+        test_module_case("Subscript in for iterable",
+            "for item in data.items:\n"
+            "    process(item)\n");
+
+        // Error cases
+        test_parser_case("Error: empty subscript", "arr[]");
+        test_parser_case("Error: missing close bracket", "arr[0");
+        test_parser_case("Error: dot with no identifier", "obj.");
+        test_parser_case("Error: dot followed by number", "obj.123");
+        
 
     return 0;
 }

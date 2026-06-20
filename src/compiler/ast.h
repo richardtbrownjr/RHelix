@@ -18,6 +18,8 @@ typedef enum {
     AST_UNARY,
     AST_GROUPING,
     AST_CALL,
+    AST_SUBSCRIPT,
+    AST_ATTRIBUTE,
     // Simple statements
     AST_EXPRESSION_STMT,
     AST_ASSIGNMENT,
@@ -63,6 +65,16 @@ typedef struct {
     int arg_capacity;
 } ASTCall;
 
+typedef struct {
+    ASTNode* object;
+    ASTNode* index;
+} ASTSubscript;
+
+typedef struct {
+    ASTNode* object;
+    char* name;          // Owned by the node
+} ASTAttribute;
+
 // === Simple statement payloads ===
 
 typedef struct {
@@ -105,19 +117,18 @@ typedef struct {
 
 // === Declaration payloads ===
 
-// Param is NOT a separate AST node, just structured data inside a FunctionDef.
 typedef struct {
     char* name;
-    ASTNode* type_annotation;  // Optional; NULL if no type given
+    ASTNode* type_annotation;
 } ASTParam;
 
 typedef struct {
     char* name;
-    ASTParam* params;          // Dynamic array of param structs
+    ASTParam* params;
     int param_count;
     int param_capacity;
-    ASTNode* return_type;      // Optional; NULL if no -> annotation given
-    ASTNode* body;             // AST_BLOCK
+    ASTNode* return_type;
+    ASTNode* body;
 } ASTFunctionDef;
 
 // === Module ===
@@ -144,6 +155,8 @@ struct ASTNode {
         ASTUnary unary;
         ASTGrouping grouping;
         ASTCall call;
+        ASTSubscript subscript;
+        ASTAttribute attribute;
         ASTExpressionStmt expression_stmt;
         ASTAssignment assignment;
         ASTReturn ret;
@@ -169,6 +182,8 @@ ASTNode* ast_unary(TokenType op, ASTNode* operand, int line, int column);
 ASTNode* ast_grouping(ASTNode* expression, int line, int column);
 ASTNode* ast_call(ASTNode* callee, int line, int column);
 void ast_call_add_arg(ASTNode* call, ASTNode* arg);
+ASTNode* ast_subscript(ASTNode* object, ASTNode* index, int line, int column);
+ASTNode* ast_attribute(ASTNode* object, const char* name, int line, int column);
 
 // === Simple statement constructors ===
 
@@ -188,10 +203,8 @@ ASTNode* ast_for(const char* var_name, ASTNode* iterable, ASTNode* body,
 
 // === Declaration constructors ===
 
-// Create a FunctionDef with no params; add them via the helper below.
 ASTNode* ast_function_def(const char* name, ASTNode* return_type,
                           ASTNode* body, int line, int column);
-// type_annotation may be NULL if the param has no type
 void ast_function_def_add_param(ASTNode* func_def, const char* param_name,
                                 ASTNode* type_annotation);
 

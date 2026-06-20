@@ -171,46 +171,96 @@ static ASTNode* unary(Parser* parser) {
     return call(parser);
 }
 
-// call -> primary ( "(" arguments? ")" )*
+// call -> primary ( "(" arguments? ")" | "[" expression "]" | "." IDENT )*
 // arguments -> expression ( "," expression )*
+//
+// The postfix loop handles call, subscript, and attribute access uniformly:
+// each branch wraps the current `expr` in a new node and loops. Chains like
+// `obj.field[0]()` fall out naturally because the loop keeps wrapping
+// whatever expression it's holding onto.
 static ASTNode* call(Parser* parser) {
     ASTNode* expr = primary(parser);
     if (!expr) return NULL;
 
-    while (check(parser, TOKEN_LPAREN)) {
-        Token* lparen = advance(parser);
+    while (true) {
+        if (check(parser, TOKEN_LPAREN)) {
+            Token* lparen = advance(parser);
 
-        ASTNode* call_node = ast_call(expr, lparen->line, lparen->column);
-        if (!call_node) {
-            ast_destroy(expr);
-            return NULL;
-        }
-
-        if (!check(parser, TOKEN_RPAREN)) {
-            ASTNode* arg = expression(parser);
-            if (!arg) {
-                ast_destroy(call_node);
+            ASTNode* call_node = ast_call(expr, lparen->line, lparen->column);
+            if (!call_node) {
+                ast_destroy(expr);
                 return NULL;
             }
-            ast_call_add_arg(call_node, arg);
 
-            while (check(parser, TOKEN_COMMA)) {
-                advance(parser);
-                arg = expression(parser);
+            if (!check(parser, TOKEN_RPAREN)) {
+                ASTNode* arg = expression(parser);
                 if (!arg) {
                     ast_destroy(call_node);
                     return NULL;
                 }
                 ast_call_add_arg(call_node, arg);
+
+                while (check(parser, TOKEN_COMMA)) {
+                    advance(parser);
+                    arg = expression(parser);
+                    if (!arg) {
+                        ast_destroy(call_node);
+                        return NULL;
+                    }
+                    ast_call_add_arg(call_node, arg);
+                }
             }
-        }
 
-        if (!consume(parser, TOKEN_RPAREN, "Expected ')' after arguments")) {
-            ast_destroy(call_node);
-            return NULL;
-        }
+            if (!consume(parser, TOKEN_RPAREN, "Expected ')' after arguments")) {
+                ast_destroy(call_node);
+                return NULL;
+            }
 
-        expr = call_node;
+            expr = call_node;
+        } else if (check(parser, TOKEN_LBRACKET)) {
+            Token* lbracket = advance(parser);
+
+            ASTNode* index = expression(parser);
+            if (!index) {
+                ast_destroy(expr);
+                return NULL;
+            }
+
+            if (!consume(parser, TOKEN_RBRACKET,
+                         "Expected ']' after subscript index")) {
+                ast_destroy(expr);
+                ast_destroy(index);
+                return NULL;
+            }
+
+            ASTNode* sub = ast_subscript(expr, index,
+                                         lbracket->line, lbracket->column);
+            if (!sub) {
+                ast_destroy(expr);
+                ast_destroy(index);
+                return NULL;
+            }
+            expr = sub;
+        } else if (check(parser, TOKEN_DOT)) {
+            Token* dot = advance(parser);
+
+            if (!check(parser, TOKEN_IDENTIFIER)) {
+                parser_error(parser, "Expected identifier after '.'");
+                ast_destroy(expr);
+                return NULL;
+            }
+            Token* name_tok = advance(parser);
+
+            ASTNode* attr = ast_attribute(expr, name_tok->lexeme,
+                                          dot->line, dot->column);
+            if (!attr) {
+                ast_destroy(expr);
+                return NULL;
+            }
+            expr = attr;
+        } else {
+            break;
+        }
     }
 
     return expr;
@@ -406,13 +456,13 @@ static ASTNode* while_statement(Parser* parser) {
 
 // for_statement -> "for" IDENTIFIER "in" expression ":" NEWLINE block
 static ASTNode* for_statement(Parser* parser) {
-    Token* for_token = advance(parser);  // Consume FOR
+    Token* for_token = advance(parser);
 
     if (!check(parser, TOKEN_IDENTIFIER)) {
         parser_error(parser, "Expected identifier after 'for'");
         return NULL;
     }
-    Token* var_token = advance(parser);  // Consume IDENTIFIER
+    Token* var_token = advance(parser);
 
     if (!consume(parser, TOKEN_IN, "Expected 'in' after for variable")) {
         return NULL;
@@ -469,10 +519,8 @@ static bool parse_param(Parser* parser, char** out_name, ASTNode** out_type) {
 
 // function_def_statement -> "def" IDENT "(" params? ")" ( "->" IDENT )?
 //                           ":" NEWLINE block
-// params -> param ( "," param )*
-// param  -> IDENT ( ":" IDENT )?
 static ASTNode* function_def_statement(Parser* parser) {
-    Token* def_token = advance(parser);  // Consume DEF
+    Token* def_token = advance(parser);
 
     if (!check(parser, TOKEN_IDENTIFIER)) {
         parser_error(parser, "Expected function name after 'def'");
@@ -484,13 +532,10 @@ static ASTNode* function_def_statement(Parser* parser) {
         return NULL;
     }
 
-    // Build the FunctionDef node early so ast_destroy handles cleanup on any
-    // error path below. body and return_type stay NULL until parsed.
     ASTNode* func = ast_function_def(name_token->lexeme, NULL, NULL,
                                      def_token->line, def_token->column);
     if (!func) return NULL;
 
-    // Parameter list (possibly empty)
     if (!check(parser, TOKEN_RPAREN)) {
         char* p_name;
         ASTNode* p_type;
@@ -499,10 +544,10 @@ static ASTNode* function_def_statement(Parser* parser) {
             return NULL;
         }
         ast_function_def_add_param(func, p_name, p_type);
-        free(p_name);  // add_param strdup's; free our local copy
+        free(p_name);
 
         while (check(parser, TOKEN_COMMA)) {
-            advance(parser);  // consume ,
+            advance(parser);
             if (!parse_param(parser, &p_name, &p_type)) {
                 ast_destroy(func);
                 return NULL;
@@ -517,7 +562,6 @@ static ASTNode* function_def_statement(Parser* parser) {
         return NULL;
     }
 
-    // Optional return type annotation
     if (match(parser, TOKEN_ARROW)) {
         if (!check(parser, TOKEN_IDENTIFIER)) {
             parser_error(parser, "Expected return type after '->'");

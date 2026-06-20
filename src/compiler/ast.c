@@ -99,6 +99,22 @@ void ast_call_add_arg(ASTNode* call, ASTNode* arg) {
     c->args[c->arg_count++] = arg;
 }
 
+ASTNode* ast_subscript(ASTNode* object, ASTNode* index, int line, int column) {
+    ASTNode* node = make_node(AST_SUBSCRIPT, line, column);
+    if (!node) return NULL;
+    node->as.subscript.object = object;
+    node->as.subscript.index = index;
+    return node;
+}
+
+ASTNode* ast_attribute(ASTNode* object, const char* name, int line, int column) {
+    ASTNode* node = make_node(AST_ATTRIBUTE, line, column);
+    if (!node) return NULL;
+    node->as.attribute.object = object;
+    node->as.attribute.name = name ? strdup(name) : NULL;
+    return node;
+}
+
 // ===== Simple statement constructors =====
 
 ASTNode* ast_expression_stmt(ASTNode* expression, int line, int column) {
@@ -258,6 +274,14 @@ void ast_destroy(ASTNode* node) {
             }
             free(node->as.call.args);
             break;
+        case AST_SUBSCRIPT:
+            ast_destroy(node->as.subscript.object);
+            ast_destroy(node->as.subscript.index);
+            break;
+        case AST_ATTRIBUTE:
+            ast_destroy(node->as.attribute.object);
+            free(node->as.attribute.name);
+            break;
         case AST_EXPRESSION_STMT:
             ast_destroy(node->as.expression_stmt.expression);
             break;
@@ -327,6 +351,8 @@ const char* ast_node_type_to_string(ASTNodeType type) {
         case AST_UNARY: return "Unary";
         case AST_GROUPING: return "Grouping";
         case AST_CALL: return "Call";
+        case AST_SUBSCRIPT: return "Subscript";
+        case AST_ATTRIBUTE: return "Attribute";
         case AST_EXPRESSION_STMT: return "ExpressionStmt";
         case AST_ASSIGNMENT: return "Assignment";
         case AST_RETURN: return "Return";
@@ -398,6 +424,22 @@ void ast_print(ASTNode* node, int indent) {
             for (int i = 0; i < node->as.call.arg_count; i++) {
                 ast_print(node->as.call.args[i], indent + 2);
             }
+            break;
+        case AST_SUBSCRIPT:
+            printf("Subscript\n");
+            print_indent(indent + 1);
+            printf("Object:\n");
+            ast_print(node->as.subscript.object, indent + 2);
+            print_indent(indent + 1);
+            printf("Index:\n");
+            ast_print(node->as.subscript.index, indent + 2);
+            break;
+        case AST_ATTRIBUTE:
+            printf("Attribute(.%s)\n",
+                   node->as.attribute.name ? node->as.attribute.name : "");
+            print_indent(indent + 1);
+            printf("Object:\n");
+            ast_print(node->as.attribute.object, indent + 2);
             break;
         case AST_EXPRESSION_STMT:
             printf("ExpressionStmt\n");
