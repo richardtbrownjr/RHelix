@@ -1,241 +1,186 @@
-# RHelix - A Modern Language for the AI Era
+# RHelix
 
-> 🎓 A learning project to deeply understand programming language design while building something practical for the age of AI-assisted development. I'm building this language as a journey to understand how programming languages really work under the hood. But rather than just building another toy language, I want to create something that addresses a real need: **a language designed from the ground up for the era of AI pair programming**.
+A custom programming language with Python-like syntax and explicit performance
+primitives, implemented in C. A learning project following the architecture
+laid out in *Crafting Interpreters*.
 
-### The Learning Goals
-- **Understand memory management** by implementing multiple strategies (GC, manual, hybrid)
-- **Master parsing and compilation** by building a full compiler pipeline
-- **Learn optimization techniques** by making Python-like code run at C++ speeds
-- **Explore type systems** by implementing gradual typing with inference
+## What is RHelix
 
-### The Practical Vision
-As AI tools become our coding partners, we need languages that:
-- Are **readable** enough for AI to understand and generate correctly
-- Have **explicit performance controls** that AI can reason about
-- Support **gradual refinement** from prototype to production
-- Provide **clear error messages** that help both humans and AI debug
+RHelix is a Python-syntax language with first-class memory and parallelism
+annotations. The design goal is to keep the readability and indentation-based
+structure of Python while letting the programmer make explicit decisions about
+allocation, ownership, and parallel execution where those decisions matter.
 
-## Key Design Principles
+- **Familiar surface syntax** — indentation-significant blocks, `def`, `class`,
+  `if/else`, `while`, `for ... in`, type annotations
+- **Explicit performance primitives** — `@arena`, `@parallel`, stack-allocation
+  hints, and a `with` block form for scoped memory regions
+- **C runtime** — reference counting with cycle detection, written from scratch
+- **Single-pass recursive descent compiler frontend** — no parser generators,
+  no external dependencies
 
-### 1. **AI-Friendly Syntax**
-```python
-# Clear, Python-like syntax that AI models understand well
-def process_data(data: List[float]) -> Statistics:
-    return calculate_stats(data)
-
-# But with performance hints AI can use
-@performance_critical
-@arena(size="100MB")  # AI knows this needs memory optimization
-def process_large_dataset(data: Dataset) -> Results:
-    # Explicit performance intentions
-    parallel for batch in data.batches():
-        process_batch(batch)
-```
-
-### 2. **Progressive Performance**
-Start simple, optimize only where needed:
-```python
-# Version 1: Simple, let AI generate this
-def blur_image(img: Image) -> Image:
-    return apply_gaussian_blur(img)
-
-# Version 2: AI helps optimize hot paths
-@optimize
-def blur_image(img: Image) -> Image:
-    with arena("10MB"):  # AI suggested this after profiling
-        # Optimized implementation
-```
-
-### 3. **Memory Management That Makes Sense**
-- **Default**: Automatic (like Python) - AI doesn't need to worry about it
-- **Explicit**: When you need control - AI can see the intent clearly
-```python
-# Automatic (default)
-data = load_file("big.csv")
-
-# Explicit when needed
-with stack[4096]:  # Clear to both human and AI
-    temp_buffer = process_chunk(data)
-```
+This is a learning project, public for documentation and reference. It is not
+production-ready and is not intended to be.
 
 ## Current Status
 
-### Implemented
-- [x] Core memory management system in C
-  - Reference counting with cycle detection
-  - Arena allocators for bulk operations
-  - Stack allocation for temporaries
-- [x] Language design for memory annotations
-- [x] Lexer with Python-style indentation tracking (INDENT/DEDENT emission, multi-level dedent)
-- [x] Full token set: literals, keywords, memory primitives, operators, delimiters, lambdas (`=>`), pipelines (`|>`)
-- [x] Tagged-union AST module
-- [x] Expression parser with recursive descent and operator precedence
-  - Seven precedence levels (equality, comparison, term, factor, unary, call, primary)
-  - Left-associative binary operators, right-associative unary
-  - Grouping via parentheses
-  - First-error-wins error reporting with line and column
-- [x] Module + statement parser (assignment, return, expression statement)
+The compiler frontend is substantially complete. RHelix source code with
+function declarations, type annotations, control flow, data access, and
+arithmetic parses into a well-formed AST. Semantic analysis and code
+generation are not yet implemented.
+
+The repo can parse this without complaint:
+
+```python
+def process_orders(orders):
+    total = 0
+    for order in orders:
+        if order.status == "paid":
+            total = total + order.items[0].price
+    return total
+
+result = process_orders(get_orders())
+```
+
+## Implemented
+
+### Runtime
+- [x] Reference-counted memory manager with cycle detection
+- [x] Arena allocator primitives
+
+### Lexer
+- [x] Full Python-style indentation tracking (INDENT/DEDENT emission)
+- [x] Multi-level dedent handling, blank/comment-line skipping
+- [x] EOF dedent closure for unclosed blocks
+- [x] Full token set including lambdas (`=>`) and pipelines (`|>`)
+- [x] Keyword recognition: `def`, `class`, `if`, `else`, `while`, `for`, `in`,
+      `return`, `True`, `False`, `None`, `with`, `as`
+
+### AST
+- [x] Tagged union representation with line/column tracking on every node
+- [x] Owned-children memory model with recursive destructor
+- [x] Pretty-printer for debugging
+
+### Parser
+- [x] Recursive descent with six precedence levels
+      (equality, comparison, term, factor, unary, postfix)
+- [x] Left-associative binary operators, right-associative unary
+- [x] Parenthesized grouping
+- [x] First-error-wins reporting with line/column information
+
+### Statement parsing
+- [x] Module / statement sequence with blank-line tolerance
 - [x] Block parser consuming INDENT/DEDENT
-- [x] Control flow statements: if/else, while, for
-- [x] Function call expressions (postfix `()` with comma-separated args, chained calls supported)
+- [x] Assignment, return, expression statements
+- [x] Control flow: `if/else`, `while`, `for ... in`
+- [x] Function declarations (`def`) with parameter and return type annotations
 
-### In Progress
-- [ ] Function and class declarations (`def`, `class`)
-- [ ] Decorators and `with` blocks (memory annotations)
-- [ ] Subscripts (`arr[i]`) and attribute access (`obj.field`)
-- [ ] Type system with gradual typing
+### Expression parsing
+- [x] All arithmetic, comparison, and equality operators
+- [x] Function call expressions (postfix `()` with comma-separated args)
+- [x] Chained calls (`foo()()`)
+- [x] Subscripts (`arr[i]`) — chains naturally to `arr[i][j]`
+- [x] Attribute access (`obj.field`) — chains naturally to `obj.a.b.c`
+- [x] Method calls (`obj.method(args)`) via Attribute + Call composition
+- [x] Free composition of all postfix forms: `obj.method(arg).field[0]`
 
-### Planned
-- [ ] Code generation to C
-- [ ] JIT compilation for hot paths
-- [ ] AI-friendly error messages
-- [ ] Built-in profiling annotations
-- [ ] Standard library with AI use cases in mind
+## In Progress
 
-## Example: Real-World Image Processing
+- [ ] Class declarations and methods
+- [ ] Decorators (`@arena`, `@parallel`) on functions and classes
+- [ ] `with` blocks for scoped memory regions
+- [ ] Lambda expressions using `=>`
+- [ ] Pipeline operator (`|>`)
+- [ ] Assignment to subscripts and attributes (`arr[i] = x`, `obj.field = x`)
+- [ ] Compound type annotations (`List[int]`, `Dict[str, int]`)
+- [ ] Semantic analysis (name resolution, type checking against annotations)
+- [ ] Code generation backend
 
-Here's how the language handles a practical task with progressive optimization:
+## Build and Test
 
-```python
-# Simple version - AI can generate this easily
-def process_images(images: List[Image]) -> List[Image]:
-    return [enhance(img) for img in images]
-
-# Performance version - AI can optimize when needed
-@parallel
-def process_images(images: List[Image]) -> List[Image]:
-    # AI knows to suggest arena for batch processing
-    @arena(size="100MB")
-    def process_batch(batch: List[Image]) -> List[Image]:
-        results = []
-        for img in batch:
-            # Stack allocation for temporaries
-            with stack[img.size * 4]:
-                enhanced = enhance_fast(img)
-                results.append(enhanced)
-        return results
-
-    # Process in parallel batches
-    return parallel_map(process_batch, images.chunks(cpu_count()))
-```
-
-## Learning Journey & Blog Posts
-
-I'm documenting what I learn along the way:
-
-## Try It Out
-
-The lexer and a substantial parser are runnable right now. The frontend can parse real algorithmic code — assignments, returns, if/else, while loops, for loops, function calls, and arbitrarily nested combinations of all of these.
+Requires `gcc` (or `clang`) and `make`. No other dependencies.
 
 ```bash
-# Clone the repo
-git clone https://github.com/richardtbrownjr/RHelix
-cd RHelix
-
-# Build the runtime and compiler libraries
-make
-
-# Run the memory manager test suite (runtime layer)
-make test
-
-# Run the lexer test suite (tokenization, INDENT/DEDENT, full token set)
-make test-lexer
-
-# Run the parser test suite (expressions, statements, control flow, calls)
-make test-parser
+make             # Build runtime and compiler libraries
+make test        # Runtime memory manager test suite
+make test-lexer  # Lexer test suite
+make test-parser # Parser test suite
+make clean       # Remove build artifacts
 ```
 
-The parser tests demonstrate code shapes like:
+## Project Structure
+RHelix/
 
-```python
-for item in collection:
-    if item > threshold:
-        result = process(item, config)
-    else:
-        log(item)
-```
+├── Makefile
+├── README.md
+├── src/
+│   ├── runtime/
+│   │   ├── memory_manager.h
+│   │   ├── memory_manager.c
+│   │   └── test_memory.c
+│   └── compiler/
+│       ├── token.h
+│       ├── token.c
+│       ├── lexer.h
+│       ├── lexer.c
+│       ├── ast.h
+│       ├── ast.c
+│       ├── parser.h
+│       ├── parser.c
+│       ├── test_lexer.c
+│       └── test_parser.c
+└── build/        (gitignored; generated by make)
 
-producing fully-formed ASTs with correct precedence, associativity, block nesting, and call resolution. Both test runners pretty-print their output so you can see exactly how source code maps to tokens and ASTs.
+## Design Decisions
 
-### Future (once `def`/`class` and code generation land)
-```bash
-./rhelix examples/hello.rx
-```
+**Tagged union AST.** Every AST node is a `ASTNode` struct with a type tag and
+a union of payloads. This is the C idiom for sum types. It costs a switch
+statement at every traversal site, but it gives precise memory layout and
+catches missing cases via `-Wswitch` warnings.
 
-## Contributing
+**Owned-children memory model.** Each AST node owns its children. `ast_destroy`
+recursively frees the entire tree top-down. Strings in nodes (identifier
+names, string literals) are `strdup`'d on creation. No reference counting on
+the AST itself — it is built once during parsing and freed once after use.
 
-This is a learning project, but I'd love to hear your thoughts! Feel free to:
-- **Open issues** with suggestions or questions
-- **Share resources** about language design
-- **Discuss design decisions** in the discussions tab
-- **Contribute code** if you're also learning!
+**Recursive descent over Pratt parsing.** Each precedence level is a function
+that calls the next-higher level. The grammar is encoded in the call structure.
+Less elegant than Pratt for very expressive operator sets, but easier to read,
+easier to extend, and matches the *Crafting Interpreters* presentation that
+this project follows.
 
-## Design Philosophy for AI Era
+**Postfix layer composes uniformly.** Function calls, subscripts, and
+attribute access all live in one `call()` function as branches of a single
+`while` loop. The loop keeps wrapping the current expression in a new node
+as long as it sees `(`, `[`, or `.`. Chains like `obj.method().field[0]`
+parse correctly without any special-case code — the same loop runs four
+times.
 
-### What AI Needs from a Language
-1. **Clear intent** - Performance annotations make optimization goals explicit
-2. **Gradual complexity** - Simple code stays simple, complex only when needed
-3. **Error clarity** - Errors that explain *why* not just *what*
-4. **Profiling built-in** - AI can see performance data directly
+**First-error-wins parsing.** When the parser hits an error, it sets a flag
+and stops. Later errors are not reported because they are usually noise
+cascading from the first one. Panic-mode recovery is a future enhancement.
 
-### Example: AI-Assisted Optimization
-```python
-@profile  # AI can see performance data
-def slow_function(data):
-    # AI sees this takes 80% of runtime
-    result = expensive_operation(data)
-    return result
-
-# AI suggests:
-@memoize  # Cache results
-@parallelize  # Use multiple cores
-def optimized_function(data):
-    with arena("50MB"):  # Bulk memory allocation
-        result = expensive_operation(data)
-    return result
-```
-
-## Build Status                        
-![Build and Test](https://github.com/richardtbrownjr/RHelix/workflows/Build%20and%20Test/badge.svg)
+**No external dependencies.** The compiler is pure C11. Standard library only.
+Linked against the project's own runtime library for memory management
+utilities.
 
 ## Recent Progress
-- ✅ Core memory management system in C (reference counting + cycle detection + arenas)
-- ✅ Runtime test suite
-- ✅ Lexer with Python-style indentation (INDENT/DEDENT, multi-level dedent, blank-line handling)
-- ✅ Full token set including lambdas (`=>`), pipeline operator (`|>`), and `in` keyword
-- ✅ Tagged-union AST module
-- ✅ Expression parser with operator precedence, associativity, and grouping
-- ✅ Module + statement parser foundation (assignment, return, expression statement)
+
+- ✅ Lexer with full indentation handling
+- ✅ AST module (tagged union representation)
+- ✅ Expression parser with operator precedence
+- ✅ Module + statement parser foundation
 - ✅ Block parser using INDENT/DEDENT
-- ✅ Control flow complete: if/else, while, for
-- ✅ Function call expressions with arbitrary arguments (chained calls supported)
-- ✅ Parser test suite covering expressions, statements, control flow, calls, and error paths
-- 🚧 Function and class declarations (`def`, `class`) — next
-- 📋 Subscripts and attribute access (`arr[i]`, `obj.field`)
-- 📋 Decorators and `with` blocks (memory annotations)
-- 📋 Type system design
-- 📋 Code generation to C
-
-## Resources I'm Pulling From
-
-- 📚 "Crafting Interpreters" by Robert Nystrom
-- 📚 "Modern Compiler Implementation" by Andrew Appel
-- 🔧 Study of: Rust (ownership), Julia (performance), Python (syntax)
-- 💡 Conversations with AI about language design
+- ✅ Control flow: `if/else`, `while`, `for` (with `in` keyword)
+- ✅ Function call expressions (chained calls supported)
+- ✅ Function declarations with parameter and return type annotations
+- ✅ Subscripts and attribute access (chained postfix data access)
+- 🚧 Class declarations and methods (next)
 
 ## License
 
-MIT License - Feel free to learn from and build upon this!
+MIT. See `LICENSE`.
 
----
+## Author
 
-*"The best way to understand something is to build it. The best time to build a new language is when the world is changing."*
-
-## Contact & Discussion
-
-- GitHub Issues: Questions, suggestions, discussions
-- Blog: working on it (detailed write-ups)
-
----
-
-**Note**: This is an active learning project. Expect things to change as I learn more about language design and compiler construction. The goal is to learn deeply while building something that could actually be useful in our AI-assisted future.
+Richard Brown — [github.com/richardtbrownjr](https://github.com/richardtbrownjr)
