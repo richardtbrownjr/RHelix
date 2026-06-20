@@ -74,6 +74,7 @@ result = process_orders(get_orders())
 - [x] Assignment, return, expression statements
 - [x] Control flow: `if/else`, `while`, `for ... in`
 - [x] Function declarations (`def`) with parameter and return type annotations
+- [x] Class declarations with method bodies
 
 ### Expression parsing
 - [x] All arithmetic, comparison, and equality operators
@@ -86,12 +87,12 @@ result = process_orders(get_orders())
 
 ## In Progress
 
-- [ ] Class declarations and methods
 - [ ] Decorators (`@arena`, `@parallel`) on functions and classes
 - [ ] `with` blocks for scoped memory regions
 - [ ] Lambda expressions using `=>`
 - [ ] Pipeline operator (`|>`)
 - [ ] Assignment to subscripts and attributes (`arr[i] = x`, `obj.field = x`)
+- [ ] Base classes / inheritance (`class Child(Parent):`)
 - [ ] Compound type annotations (`List[int]`, `Dict[str, int]`)
 - [ ] Semantic analysis (name resolution, type checking against annotations)
 - [ ] Code generation backend
@@ -175,7 +176,8 @@ utilities.
 - ✅ Function call expressions (chained calls supported)
 - ✅ Function declarations with parameter and return type annotations
 - ✅ Subscripts and attribute access (chained postfix data access)
-- 🚧 Class declarations and methods (next)
+- ✅ Class declarations and methods (next)
+- 🚧 Decorators (next)
 
 ## License
 
