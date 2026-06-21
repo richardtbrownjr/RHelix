@@ -38,6 +38,7 @@ const char* token_type_to_string(TokenType type) {
         // Keywords
         case TOKEN_DEF: return "DEF";
         case TOKEN_RETURN: return "RETURN";
+        case TOKEN_PASS: return "PASS";
         case TOKEN_IF: return "IF";
         case TOKEN_ELSE: return "ELSE";
         case TOKEN_FOR: return "FOR";

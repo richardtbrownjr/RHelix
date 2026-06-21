@@ -417,7 +417,66 @@ int main(void) {
 
     test_module_case("Error: missing class body",
         "class Foo:\n");
-        
+        // ===== Inheritance and pass =====
+        printf("\n\n========== INHERITANCE AND PASS TESTS ==========\n");
+
+        // Pass statement
+        test_module_case("Pass as standalone statement",
+            "pass\n");
+
+        test_module_case("Class with empty body (pass)",
+            "class Empty:\n"
+            "    pass\n");
+
+        test_module_case("Function with empty body (pass)",
+            "def todo():\n"
+            "    pass\n");
+
+        test_module_case("Pass mixed with other statements",
+            "def stub():\n"
+            "    x = 1\n"
+            "    pass\n"
+            "    return x\n");
+
+        // Inheritance
+        test_module_case("Single inheritance",
+            "class Dog(Animal):\n"
+            "    def fetch(self):\n"
+            "        return self.toy\n");
+
+        test_module_case("Multiple inheritance",
+            "class Hybrid(Animal, Trackable, Serializable):\n"
+            "    pass\n");
+
+        test_module_case("Inheritance with empty body using pass",
+            "class Dog(Animal):\n"
+            "    pass\n");
+
+        test_module_case("Empty parens equals no bases",
+            "class Foo():\n"
+            "    pass\n");
+
+        // SESSION PROOF POINT: realistic small class hierarchy
+        test_module_case("Class hierarchy (session proof point)",
+            "class Animal:\n"
+            "    def speak(self):\n"
+            "        return self.sound\n"
+            "class Dog(Animal):\n"
+            "    def fetch(self):\n"
+            "        return self.toy\n"
+            "class Puppy(Dog):\n"
+            "    pass\n"
+            "p = Puppy()\n"
+            "result = p.fetch()\n");
+
+        // Error cases
+        test_module_case("Error: missing base class name after comma",
+            "class Foo(A,):\n"
+            "    pass\n");
+
+        test_module_case("Error: missing close paren in bases",
+            "class Foo(A, B:\n"
+            "    pass\n");
 
     return 0;
 }

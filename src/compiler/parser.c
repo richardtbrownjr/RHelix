@@ -97,6 +97,7 @@ static ASTNode* primary(Parser* parser);
 
 static ASTNode* statement(Parser* parser);
 static ASTNode* return_statement(Parser* parser);
+static ASTNode* pass_statement(Parser* parser);
 static ASTNode* assignment_statement(Parser* parser);
 static ASTNode* expression_statement(Parser* parser);
 static ASTNode* block(Parser* parser);
@@ -301,7 +302,8 @@ static ASTNode* primary(Parser* parser) {
 
 // ===== Statement grammar =====
 
-// statement -> class | def | if | while | for | return | assignment | expression_stmt
+// statement -> class | def | if | while | for | return | pass
+//            | assignment | expression_stmt
 static ASTNode* statement(Parser* parser) {
     if (check(parser, TOKEN_CLASS))  return class_def_statement(parser);
     if (check(parser, TOKEN_DEF))    return function_def_statement(parser);
@@ -309,6 +311,7 @@ static ASTNode* statement(Parser* parser) {
     if (check(parser, TOKEN_WHILE))  return while_statement(parser);
     if (check(parser, TOKEN_FOR))    return for_statement(parser);
     if (check(parser, TOKEN_RETURN)) return return_statement(parser);
+    if (check(parser, TOKEN_PASS))   return pass_statement(parser);
     if (check(parser, TOKEN_IDENTIFIER)) {
         Token* next = peek_at(parser, 1);
         if (next && next->type == TOKEN_EQUALS) {
@@ -328,6 +331,13 @@ static ASTNode* return_statement(Parser* parser) {
     }
     match(parser, TOKEN_NEWLINE);
     return ast_return(value, return_token->line, return_token->column);
+}
+
+// pass_statement -> "pass" NEWLINE?
+static ASTNode* pass_statement(Parser* parser) {
+    Token* pass_token = advance(parser);  // Consume PASS
+    match(parser, TOKEN_NEWLINE);
+    return ast_pass(pass_token->line, pass_token->column);
 }
 
 // assignment_statement -> IDENTIFIER "=" expression NEWLINE?
@@ -586,13 +596,13 @@ static ASTNode* function_def_statement(Parser* parser) {
     return func;
 }
 
-// class_def_statement -> "class" IDENT ":" NEWLINE block
+// class_def_statement -> "class" IDENT ( "(" IDENT ("," IDENT)* ")" )?
+//                        ":" NEWLINE block
 //
-// Class bodies are just blocks. The block parser already loops on statement(),
-// which already dispatches def -> function_def_statement. So class bodies
-// containing methods work without any new code. Class-level attribute
-// assignments work for the same reason - they parse as ordinary Assignment
-// nodes inside the body block.
+// Class bodies are just blocks. Methods inside the body are FunctionDef
+// nodes (no new code; the block parser already dispatches on def).
+// Base classes are restricted to bare identifiers for v1; compound bases
+// like Generic[T] come when we extend type expressions.
 static ASTNode* class_def_statement(Parser* parser) {
     Token* class_token = advance(parser);  // Consume CLASS
 
@@ -602,18 +612,62 @@ static ASTNode* class_def_statement(Parser* parser) {
     }
     Token* name_token = advance(parser);
 
-    if (!consume(parser, TOKEN_COLON, "Expected ':' after class name")) {
+    // Build the ClassDef node early so ast_destroy handles cleanup
+    // on any error path below. body stays NULL until parsed.
+    ASTNode* cls = ast_class_def(name_token->lexeme, NULL,
+                                 class_token->line, class_token->column);
+    if (!cls) return NULL;
+
+    // Optional base class list: "(" IDENT ("," IDENT)* ")"
+    if (match(parser, TOKEN_LPAREN)) {
+        if (!check(parser, TOKEN_RPAREN)) {
+            // First base
+            if (!check(parser, TOKEN_IDENTIFIER)) {
+                parser_error(parser, "Expected base class name");
+                ast_destroy(cls);
+                return NULL;
+            }
+            Token* base_tok = advance(parser);
+            ast_class_def_add_base(cls, base_tok->lexeme,
+                                   base_tok->line, base_tok->column);
+
+            // Additional bases
+            while (check(parser, TOKEN_COMMA)) {
+                advance(parser);  // consume ,
+                if (!check(parser, TOKEN_IDENTIFIER)) {
+                    parser_error(parser, "Expected base class name after ','");
+                    ast_destroy(cls);
+                    return NULL;
+                }
+                Token* next_base = advance(parser);
+                ast_class_def_add_base(cls, next_base->lexeme,
+                                       next_base->line, next_base->column);
+            }
+        }
+
+        if (!consume(parser, TOKEN_RPAREN, "Expected ')' after base classes")) {
+            ast_destroy(cls);
+            return NULL;
+        }
+    }
+
+    if (!consume(parser, TOKEN_COLON, "Expected ':' after class header")) {
+        ast_destroy(cls);
         return NULL;
     }
     if (!consume(parser, TOKEN_NEWLINE, "Expected newline after ':'")) {
+        ast_destroy(cls);
         return NULL;
     }
 
     ASTNode* body = block(parser);
-    if (!body) return NULL;
+    if (!body) {
+        ast_destroy(cls);
+        return NULL;
+    }
+    cls->as.class_def.body = body;
 
-    return ast_class_def(name_token->lexeme, body,
-                         class_token->line, class_token->column);
+    return cls;
 }
 
 // ===== Public API =====

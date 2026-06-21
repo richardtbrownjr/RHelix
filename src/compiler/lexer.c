@@ -15,6 +15,7 @@ typedef struct {
 static Keyword keywords[] = {
     {"def", TOKEN_DEF},
     {"return", TOKEN_RETURN},
+    {"pass", TOKEN_PASS},
     {"if", TOKEN_IF},
     {"else", TOKEN_ELSE},
     {"for", TOKEN_FOR},

@@ -24,6 +24,7 @@ typedef enum {
     AST_EXPRESSION_STMT,
     AST_ASSIGNMENT,
     AST_RETURN,
+    AST_PASS,
     // Compound statements
     AST_BLOCK,
     AST_IF,
@@ -91,6 +92,8 @@ typedef struct {
     ASTNode* value;
 } ASTReturn;
 
+// AST_PASS has no payload - it is a tag-only node
+
 // === Compound statement payloads ===
 
 typedef struct {
@@ -134,7 +137,10 @@ typedef struct {
 
 typedef struct {
     char* name;
-    ASTNode* body;        // AST_BLOCK
+    ASTNode** base_classes;      // Dynamic array of identifier nodes
+    int base_count;
+    int base_capacity;
+    ASTNode* body;               // AST_BLOCK
 } ASTClassDef;
 
 // === Module ===
@@ -173,6 +179,7 @@ struct ASTNode {
         ASTFunctionDef function_def;
         ASTClassDef class_def;
         ASTModule module;
+        // AST_PASS, AST_LITERAL_NONE have no payload
     } as;
 };
 
@@ -197,6 +204,7 @@ ASTNode* ast_attribute(ASTNode* object, const char* name, int line, int column);
 ASTNode* ast_expression_stmt(ASTNode* expression, int line, int column);
 ASTNode* ast_assignment(ASTNode* target, ASTNode* value, int line, int column);
 ASTNode* ast_return(ASTNode* value, int line, int column);
+ASTNode* ast_pass(int line, int column);
 
 // === Compound statement constructors ===
 
@@ -215,6 +223,8 @@ ASTNode* ast_function_def(const char* name, ASTNode* return_type,
 void ast_function_def_add_param(ASTNode* func_def, const char* param_name,
                                 ASTNode* type_annotation);
 ASTNode* ast_class_def(const char* name, ASTNode* body, int line, int column);
+void ast_class_def_add_base(ASTNode* class_def, const char* base_name,
+                            int line, int column);
 
 // === Module ===
 

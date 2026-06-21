@@ -139,6 +139,10 @@ ASTNode* ast_return(ASTNode* value, int line, int column) {
     return node;
 }
 
+ASTNode* ast_pass(int line, int column) {
+    return make_node(AST_PASS, line, column);
+}
+
 // ===== Compound statement constructors =====
 
 ASTNode* ast_block(int line, int column) {
@@ -222,8 +226,24 @@ ASTNode* ast_class_def(const char* name, ASTNode* body, int line, int column) {
     ASTNode* node = make_node(AST_CLASS_DEF, line, column);
     if (!node) return NULL;
     node->as.class_def.name = name ? strdup(name) : NULL;
+    node->as.class_def.base_classes = NULL;
+    node->as.class_def.base_count = 0;
+    node->as.class_def.base_capacity = 0;
     node->as.class_def.body = body;
     return node;
+}
+
+void ast_class_def_add_base(ASTNode* class_def, const char* base_name,
+                            int line, int column) {
+    if (!class_def || class_def->type != AST_CLASS_DEF || !base_name) return;
+    ASTClassDef* c = &class_def->as.class_def;
+    if (c->base_count >= c->base_capacity) {
+        int new_cap = c->base_capacity == 0 ? 4 : c->base_capacity * 2;
+        c->base_classes = (ASTNode**)realloc(c->base_classes,
+                                             sizeof(ASTNode*) * new_cap);
+        c->base_capacity = new_cap;
+    }
+    c->base_classes[c->base_count++] = ast_identifier(base_name, line, column);
 }
 
 // ===== Module =====
@@ -258,6 +278,7 @@ void ast_destroy(ASTNode* node) {
         case AST_LITERAL_FLOAT:
         case AST_LITERAL_BOOL:
         case AST_LITERAL_NONE:
+        case AST_PASS:
             break;
         case AST_LITERAL_STRING:
             free(node->as.literal_string.value);
@@ -336,6 +357,10 @@ void ast_destroy(ASTNode* node) {
             break;
         case AST_CLASS_DEF:
             free(node->as.class_def.name);
+            for (int i = 0; i < node->as.class_def.base_count; i++) {
+                ast_destroy(node->as.class_def.base_classes[i]);
+            }
+            free(node->as.class_def.base_classes);
             ast_destroy(node->as.class_def.body);
             break;
         case AST_MODULE:
@@ -368,6 +393,7 @@ const char* ast_node_type_to_string(ASTNodeType type) {
         case AST_EXPRESSION_STMT: return "ExpressionStmt";
         case AST_ASSIGNMENT: return "Assignment";
         case AST_RETURN: return "Return";
+        case AST_PASS: return "Pass";
         case AST_BLOCK: return "Block";
         case AST_IF: return "If";
         case AST_WHILE: return "While";
@@ -471,6 +497,9 @@ void ast_print(ASTNode* node, int indent) {
                 printf("Return(bare)\n");
             }
             break;
+        case AST_PASS:
+            printf("Pass\n");
+            break;
         case AST_BLOCK:
             printf("Block(%d statements)\n", node->as.block.count);
             for (int i = 0; i < node->as.block.count; i++) {
@@ -539,6 +568,13 @@ void ast_print(ASTNode* node, int indent) {
         case AST_CLASS_DEF:
             printf("ClassDef(%s)\n",
                    node->as.class_def.name ? node->as.class_def.name : "");
+            if (node->as.class_def.base_count > 0) {
+                print_indent(indent + 1);
+                printf("Bases(%d):\n", node->as.class_def.base_count);
+                for (int i = 0; i < node->as.class_def.base_count; i++) {
+                    ast_print(node->as.class_def.base_classes[i], indent + 2);
+                }
+            }
             print_indent(indent + 1);
             printf("Body:\n");
             ast_print(node->as.class_def.body, indent + 2);
