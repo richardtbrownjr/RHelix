@@ -26,7 +26,6 @@ typedef enum {
 
     // Memory keywords (RHelix specific)
     TOKEN_WITH,
-    TOKEN_ARENA,
     TOKEN_STACK,
     TOKEN_ALLOC,
     TOKEN_MOVE,

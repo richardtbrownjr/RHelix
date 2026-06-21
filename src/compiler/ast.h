@@ -133,6 +133,9 @@ typedef struct {
     int param_capacity;
     ASTNode* return_type;
     ASTNode* body;
+    ASTNode** decorators;        // Dynamic array of decorator expressions
+    int decorator_count;
+    int decorator_capacity;
 } ASTFunctionDef;
 
 typedef struct {
@@ -141,6 +144,9 @@ typedef struct {
     int base_count;
     int base_capacity;
     ASTNode* body;               // AST_BLOCK
+    ASTNode** decorators;        // Dynamic array of decorator expressions
+    int decorator_count;
+    int decorator_capacity;
 } ASTClassDef;
 
 // === Module ===
@@ -225,6 +231,8 @@ void ast_function_def_add_param(ASTNode* func_def, const char* param_name,
 ASTNode* ast_class_def(const char* name, ASTNode* body, int line, int column);
 void ast_class_def_add_base(ASTNode* class_def, const char* base_name,
                             int line, int column);
+void ast_function_def_add_decorator(ASTNode* func_def, ASTNode* decorator);
+void ast_class_def_add_decorator(ASTNode* class_def, ASTNode* decorator);
 
 // === Module ===
 

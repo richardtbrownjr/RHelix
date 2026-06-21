@@ -477,6 +477,66 @@ int main(void) {
         test_module_case("Error: missing close paren in bases",
             "class Foo(A, B:\n"
             "    pass\n");
+            // ===== Decorators =====
+        printf("\n\n========== DECORATOR TESTS ==========\n");
+
+        test_module_case("Simple decorator on function",
+            "@cached\n"
+            "def expensive(x):\n"
+            "    return x\n");
+
+        test_module_case("Decorator with arguments on function",
+            "@arena(100)\n"
+            "def matmul(a, b):\n"
+            "    return a\n");
+
+        test_module_case("Multiple decorators stacked",
+            "@cached\n"
+            "@logged\n"
+            "@traced\n"
+            "def critical(x):\n"
+            "    return x\n");
+
+        test_module_case("Decorator on class",
+            "@dataclass\n"
+            "class User:\n"
+            "    pass\n");
+
+        test_module_case("Decorator on class with inheritance",
+            "@dataclass\n"
+            "class Admin(User):\n"
+            "    pass\n");
+
+        test_module_case("Attribute-style decorator",
+            "@functools.cache\n"
+            "def fib(n):\n"
+            "    return n\n");
+
+        test_module_case("Attribute decorator with args",
+            "@functools.lru_cache(128)\n"
+            "def expensive(x):\n"
+            "    return x\n");
+
+        // SESSION PROOF POINT: RHelix-style stacked decorators on inheritance
+        test_module_case("Decorator proof point (RHelix-style)",
+            "@parallel\n"
+            "@arena(1024)\n"
+            "class Buffer(Stream):\n"
+            "    def write(self, data):\n"
+            "        return self.append(data)\n");
+
+        // Error cases
+        test_module_case("Error: decorator with no target",
+            "@cached\n");
+
+        test_module_case("Error: decorator followed by non-def/class",
+            "@cached\n"
+            "x = 1\n");
+
+        test_module_case("Error: missing expression after @",
+            "@\n"
+            "def foo():\n"
+            "    return 1\n");
 
     return 0;
 }

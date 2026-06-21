@@ -205,6 +205,9 @@ ASTNode* ast_function_def(const char* name, ASTNode* return_type,
     node->as.function_def.param_capacity = 0;
     node->as.function_def.return_type = return_type;
     node->as.function_def.body = body;
+    node->as.function_def.decorators = NULL;
+    node->as.function_def.decorator_count = 0;
+    node->as.function_def.decorator_capacity = 0;
     return node;
 }
 
@@ -230,6 +233,9 @@ ASTNode* ast_class_def(const char* name, ASTNode* body, int line, int column) {
     node->as.class_def.base_count = 0;
     node->as.class_def.base_capacity = 0;
     node->as.class_def.body = body;
+    node->as.class_def.decorators = NULL;
+    node->as.class_def.decorator_count = 0;
+    node->as.class_def.decorator_capacity = 0;
     return node;
 }
 
@@ -244,6 +250,30 @@ void ast_class_def_add_base(ASTNode* class_def, const char* base_name,
         c->base_capacity = new_cap;
     }
     c->base_classes[c->base_count++] = ast_identifier(base_name, line, column);
+}
+
+void ast_function_def_add_decorator(ASTNode* func_def, ASTNode* decorator) {
+    if (!func_def || func_def->type != AST_FUNCTION_DEF || !decorator) return;
+    ASTFunctionDef* f = &func_def->as.function_def;
+    if (f->decorator_count >= f->decorator_capacity) {
+        int new_cap = f->decorator_capacity == 0 ? 4 : f->decorator_capacity * 2;
+        f->decorators = (ASTNode**)realloc(f->decorators,
+                                           sizeof(ASTNode*) * new_cap);
+        f->decorator_capacity = new_cap;
+    }
+    f->decorators[f->decorator_count++] = decorator;
+}
+
+void ast_class_def_add_decorator(ASTNode* class_def, ASTNode* decorator) {
+    if (!class_def || class_def->type != AST_CLASS_DEF || !decorator) return;
+    ASTClassDef* c = &class_def->as.class_def;
+    if (c->decorator_count >= c->decorator_capacity) {
+        int new_cap = c->decorator_capacity == 0 ? 4 : c->decorator_capacity * 2;
+        c->decorators = (ASTNode**)realloc(c->decorators,
+                                           sizeof(ASTNode*) * new_cap);
+        c->decorator_capacity = new_cap;
+    }
+    c->decorators[c->decorator_count++] = decorator;
 }
 
 // ===== Module =====
@@ -354,6 +384,10 @@ void ast_destroy(ASTNode* node) {
                 ast_destroy(node->as.function_def.return_type);
             }
             ast_destroy(node->as.function_def.body);
+            for (int i = 0; i < node->as.function_def.decorator_count; i++) {
+                ast_destroy(node->as.function_def.decorators[i]);
+            }
+            free(node->as.function_def.decorators);
             break;
         case AST_CLASS_DEF:
             free(node->as.class_def.name);
@@ -362,6 +396,10 @@ void ast_destroy(ASTNode* node) {
             }
             free(node->as.class_def.base_classes);
             ast_destroy(node->as.class_def.body);
+            for (int i = 0; i < node->as.class_def.decorator_count; i++) {
+                ast_destroy(node->as.class_def.decorators[i]);
+            }
+            free(node->as.class_def.decorators);
             break;
         case AST_MODULE:
             for (int i = 0; i < node->as.module.count; i++) {
@@ -544,6 +582,13 @@ void ast_print(ASTNode* node, int indent) {
         case AST_FUNCTION_DEF:
             printf("FunctionDef(%s)\n",
                    node->as.function_def.name ? node->as.function_def.name : "");
+            if (node->as.function_def.decorator_count > 0) {
+                print_indent(indent + 1);
+                printf("Decorators(%d):\n", node->as.function_def.decorator_count);
+                for (int i = 0; i < node->as.function_def.decorator_count; i++) {
+                    ast_print(node->as.function_def.decorators[i], indent + 2);
+                }
+            }
             print_indent(indent + 1);
             printf("Params(%d):\n", node->as.function_def.param_count);
             for (int i = 0; i < node->as.function_def.param_count; i++) {
@@ -568,6 +613,13 @@ void ast_print(ASTNode* node, int indent) {
         case AST_CLASS_DEF:
             printf("ClassDef(%s)\n",
                    node->as.class_def.name ? node->as.class_def.name : "");
+            if (node->as.class_def.decorator_count > 0) {
+                print_indent(indent + 1);
+                printf("Decorators(%d):\n", node->as.class_def.decorator_count);
+                for (int i = 0; i < node->as.class_def.decorator_count; i++) {
+                    ast_print(node->as.class_def.decorators[i], indent + 2);
+                }
+            }
             if (node->as.class_def.base_count > 0) {
                 print_indent(indent + 1);
                 printf("Bases(%d):\n", node->as.class_def.base_count);

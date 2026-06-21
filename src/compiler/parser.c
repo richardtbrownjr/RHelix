@@ -106,6 +106,7 @@ static ASTNode* while_statement(Parser* parser);
 static ASTNode* for_statement(Parser* parser);
 static ASTNode* function_def_statement(Parser* parser);
 static ASTNode* class_def_statement(Parser* parser);
+static ASTNode* decorated_statement(Parser* parser);
 
 // ===== Expression grammar =====
 
@@ -302,9 +303,10 @@ static ASTNode* primary(Parser* parser) {
 
 // ===== Statement grammar =====
 
-// statement -> class | def | if | while | for | return | pass
+// statement -> @ decorated | class | def | if | while | for | return | pass
 //            | assignment | expression_stmt
 static ASTNode* statement(Parser* parser) {
+    if (check(parser, TOKEN_AT))     return decorated_statement(parser);
     if (check(parser, TOKEN_CLASS))  return class_def_statement(parser);
     if (check(parser, TOKEN_DEF))    return function_def_statement(parser);
     if (check(parser, TOKEN_IF))     return if_statement(parser);
@@ -335,7 +337,7 @@ static ASTNode* return_statement(Parser* parser) {
 
 // pass_statement -> "pass" NEWLINE?
 static ASTNode* pass_statement(Parser* parser) {
-    Token* pass_token = advance(parser);  // Consume PASS
+    Token* pass_token = advance(parser);
     match(parser, TOKEN_NEWLINE);
     return ast_pass(pass_token->line, pass_token->column);
 }
@@ -598,13 +600,8 @@ static ASTNode* function_def_statement(Parser* parser) {
 
 // class_def_statement -> "class" IDENT ( "(" IDENT ("," IDENT)* ")" )?
 //                        ":" NEWLINE block
-//
-// Class bodies are just blocks. Methods inside the body are FunctionDef
-// nodes (no new code; the block parser already dispatches on def).
-// Base classes are restricted to bare identifiers for v1; compound bases
-// like Generic[T] come when we extend type expressions.
 static ASTNode* class_def_statement(Parser* parser) {
-    Token* class_token = advance(parser);  // Consume CLASS
+    Token* class_token = advance(parser);
 
     if (!check(parser, TOKEN_IDENTIFIER)) {
         parser_error(parser, "Expected class name after 'class'");
@@ -612,16 +609,12 @@ static ASTNode* class_def_statement(Parser* parser) {
     }
     Token* name_token = advance(parser);
 
-    // Build the ClassDef node early so ast_destroy handles cleanup
-    // on any error path below. body stays NULL until parsed.
     ASTNode* cls = ast_class_def(name_token->lexeme, NULL,
                                  class_token->line, class_token->column);
     if (!cls) return NULL;
 
-    // Optional base class list: "(" IDENT ("," IDENT)* ")"
     if (match(parser, TOKEN_LPAREN)) {
         if (!check(parser, TOKEN_RPAREN)) {
-            // First base
             if (!check(parser, TOKEN_IDENTIFIER)) {
                 parser_error(parser, "Expected base class name");
                 ast_destroy(cls);
@@ -631,9 +624,8 @@ static ASTNode* class_def_statement(Parser* parser) {
             ast_class_def_add_base(cls, base_tok->lexeme,
                                    base_tok->line, base_tok->column);
 
-            // Additional bases
             while (check(parser, TOKEN_COMMA)) {
-                advance(parser);  // consume ,
+                advance(parser);
                 if (!check(parser, TOKEN_IDENTIFIER)) {
                     parser_error(parser, "Expected base class name after ','");
                     ast_destroy(cls);
@@ -668,6 +660,78 @@ static ASTNode* class_def_statement(Parser* parser) {
     cls->as.class_def.body = body;
 
     return cls;
+}
+
+// decorated_statement -> ( "@" call NEWLINE )+ ( function_def | class_def )
+//
+// A decorator is "@" followed by any call-layer expression. That gives us
+// @name, @name(args), @module.name, and @module.name(args) for free because
+// we just call our existing call() function. Decorators stack: any number
+// of "@..." lines may precede a def or class. After collecting them all,
+// we parse the following def/class and attach the decorators to it.
+static ASTNode* decorated_statement(Parser* parser) {
+    ASTNode** decorators = NULL;
+    int decorator_count = 0;
+    int decorator_capacity = 0;
+
+    while (check(parser, TOKEN_AT)) {
+        advance(parser);  // Consume @
+
+        ASTNode* dec = call(parser);
+        if (!dec) {
+            for (int i = 0; i < decorator_count; i++) ast_destroy(decorators[i]);
+            free(decorators);
+            return NULL;
+        }
+
+        if (!consume(parser, TOKEN_NEWLINE, "Expected newline after decorator")) {
+            ast_destroy(dec);
+            for (int i = 0; i < decorator_count; i++) ast_destroy(decorators[i]);
+            free(decorators);
+            return NULL;
+        }
+
+        if (decorator_count >= decorator_capacity) {
+            int new_cap = decorator_capacity == 0 ? 4 : decorator_capacity * 2;
+            decorators = (ASTNode**)realloc(decorators,
+                                            sizeof(ASTNode*) * new_cap);
+            decorator_capacity = new_cap;
+        }
+        decorators[decorator_count++] = dec;
+
+        skip_newlines(parser);
+    }
+
+    ASTNode* target = NULL;
+    if (check(parser, TOKEN_DEF)) {
+        target = function_def_statement(parser);
+    } else if (check(parser, TOKEN_CLASS)) {
+        target = class_def_statement(parser);
+    } else {
+        parser_error(parser, "Expected 'def' or 'class' after decorator");
+        for (int i = 0; i < decorator_count; i++) ast_destroy(decorators[i]);
+        free(decorators);
+        return NULL;
+    }
+
+    if (!target) {
+        for (int i = 0; i < decorator_count; i++) ast_destroy(decorators[i]);
+        free(decorators);
+        return NULL;
+    }
+
+    // Attach decorators. Ownership transfers from the temporary array to the
+    // target node. We free the array shell but not the elements.
+    for (int i = 0; i < decorator_count; i++) {
+        if (target->type == AST_FUNCTION_DEF) {
+            ast_function_def_add_decorator(target, decorators[i]);
+        } else {
+            ast_class_def_add_decorator(target, decorators[i]);
+        }
+    }
+    free(decorators);
+
+    return target;
 }
 
 // ===== Public API =====
