@@ -25,21 +25,35 @@ production-ready and is not intended to be.
 ## Current Status
 
 The compiler frontend is substantially complete. RHelix source code with
-function declarations, type annotations, control flow, data access, and
-arithmetic parses into a well-formed AST. Semantic analysis and code
-generation are not yet implemented.
+function declarations, type annotations, control flow, data access, classes
+with inheritance, decorators, and loop control parses into a well-formed AST.
+Semantic analysis and code generation are not yet implemented.
 
 The repo can parse this without complaint:
 
 ```python
-def process_orders(orders):
-    total = 0
-    for order in orders:
-        if order.status == "paid":
-            total = total + order.items[0].price
-    return total
+@parallel
+@arena(1024)
+class Buffer(Stream):
+    def write(self, data):
+        return self.append(data)
 
-result = process_orders(get_orders())
+@cached
+def find_first(items, predicate):
+    for item in items:
+        if predicate(item):
+            return item
+    return None
+
+def filter_clean(values):
+    result = Bag()
+    for v in values:
+        if v < 0:
+            continue
+        if v > max_allowed:
+            break
+        result.add(v)
+    return result
 ```
 
 ## Implemented
@@ -54,7 +68,8 @@ result = process_orders(get_orders())
 - [x] EOF dedent closure for unclosed blocks
 - [x] Full token set including lambdas (`=>`) and pipelines (`|>`)
 - [x] Keyword recognition: `def`, `class`, `if`, `else`, `while`, `for`, `in`,
-      `return`, `True`, `False`, `None`, `with`, `as`
+      `return`, `pass`, `break`, `continue`, `True`, `False`, `None`,
+      `with`, `as`
 
 ### AST
 - [x] Tagged union representation with line/column tracking on every node
@@ -73,8 +88,12 @@ result = process_orders(get_orders())
 - [x] Block parser consuming INDENT/DEDENT
 - [x] Assignment, return, expression statements
 - [x] Control flow: `if/else`, `while`, `for ... in`
+- [x] Loop control: `break` and `continue`
+- [x] `pass` statement for empty bodies
 - [x] Function declarations (`def`) with parameter and return type annotations
 - [x] Class declarations with method bodies
+- [x] Class inheritance (single and multiple base classes)
+- [x] Decorators on functions and classes (stacked, with optional arguments)
 
 ### Expression parsing
 - [x] All arithmetic, comparison, and equality operators
@@ -87,12 +106,10 @@ result = process_orders(get_orders())
 
 ## In Progress
 
-- [ ] Decorators (`@arena`, `@parallel`) on functions and classes
 - [ ] `with` blocks for scoped memory regions
 - [ ] Lambda expressions using `=>`
 - [ ] Pipeline operator (`|>`)
 - [ ] Assignment to subscripts and attributes (`arr[i] = x`, `obj.field = x`)
-- [ ] Base classes / inheritance (`class Child(Parent):`)
 - [ ] Compound type annotations (`List[int]`, `Dict[str, int]`)
 - [ ] Semantic analysis (name resolution, type checking against annotations)
 - [ ] Code generation backend
@@ -155,7 +172,16 @@ attribute access all live in one `call()` function as branches of a single
 `while` loop. The loop keeps wrapping the current expression in a new node
 as long as it sees `(`, `[`, or `.`. Chains like `obj.method().field[0]`
 parse correctly without any special-case code — the same loop runs four
-times.
+times. Decorators reuse the same `call()` function to parse what follows
+`@`, which is why `@name`, `@name(args)`, `@module.name`, and
+`@module.name(args)` all work without new parser code.
+
+**Decorator names are not lexer keywords.** `@arena` and `@parallel` are
+significant to RHelix's design, but at parse time they are ordinary
+identifiers. The semantic analyzer is where these names will pick up
+memory-region and parallelism meanings. Reserving them in the lexer would
+prevent legitimate use of `arena` or `parallel` as identifiers in non-decorator
+contexts.
 
 **First-error-wins parsing.** When the parser hits an error, it sets a flag
 and stops. Later errors are not reported because they are usually noise
@@ -176,8 +202,11 @@ utilities.
 - ✅ Function call expressions (chained calls supported)
 - ✅ Function declarations with parameter and return type annotations
 - ✅ Subscripts and attribute access (chained postfix data access)
-- ✅ Class declarations and methods (next)
-- 🚧 Decorators (next)
+- ✅ Class declarations with methods and class-level attributes
+- ✅ Inheritance and `pass` statement
+- ✅ Decorators on functions and classes (uniform postfix expression after `@`)
+- ✅ Loop control: `break` and `continue`
+- 🚧 `with` blocks and lambda expressions (next)
 
 ## License
 
