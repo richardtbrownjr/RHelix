@@ -39,6 +39,8 @@ const char* token_type_to_string(TokenType type) {
         case TOKEN_DEF: return "DEF";
         case TOKEN_RETURN: return "RETURN";
         case TOKEN_PASS: return "PASS";
+        case TOKEN_BREAK: return "BREAK";
+        case TOKEN_CONTINUE: return "CONTINUE";
         case TOKEN_IF: return "IF";
         case TOKEN_ELSE: return "ELSE";
         case TOKEN_FOR: return "FOR";

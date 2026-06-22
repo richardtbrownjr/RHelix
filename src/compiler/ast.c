@@ -142,7 +142,13 @@ ASTNode* ast_return(ASTNode* value, int line, int column) {
 ASTNode* ast_pass(int line, int column) {
     return make_node(AST_PASS, line, column);
 }
+ASTNode* ast_break(int line, int column) {
+    return make_node(AST_BREAK, line, column);
+}
 
+ASTNode* ast_continue(int line, int column) {
+    return make_node(AST_CONTINUE, line, column);
+}
 // ===== Compound statement constructors =====
 
 ASTNode* ast_block(int line, int column) {
@@ -309,7 +315,9 @@ void ast_destroy(ASTNode* node) {
         case AST_LITERAL_BOOL:
         case AST_LITERAL_NONE:
         case AST_PASS:
-            break;
+        case AST_BREAK:
+        case AST_CONTINUE:
+          break;
         case AST_LITERAL_STRING:
             free(node->as.literal_string.value);
             break;
@@ -432,6 +440,8 @@ const char* ast_node_type_to_string(ASTNodeType type) {
         case AST_ASSIGNMENT: return "Assignment";
         case AST_RETURN: return "Return";
         case AST_PASS: return "Pass";
+        case AST_BREAK: return "Break";
+        case AST_CONTINUE: return "Continue";
         case AST_BLOCK: return "Block";
         case AST_IF: return "If";
         case AST_WHILE: return "While";
@@ -537,6 +547,12 @@ void ast_print(ASTNode* node, int indent) {
             break;
         case AST_PASS:
             printf("Pass\n");
+            break;
+        case AST_BREAK:
+            printf("Break\n");
+            break;
+        case AST_CONTINUE:
+            printf("Continue\n");
             break;
         case AST_BLOCK:
             printf("Block(%d statements)\n", node->as.block.count);

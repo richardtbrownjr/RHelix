@@ -98,6 +98,8 @@ static ASTNode* primary(Parser* parser);
 static ASTNode* statement(Parser* parser);
 static ASTNode* return_statement(Parser* parser);
 static ASTNode* pass_statement(Parser* parser);
+static ASTNode* break_statement(Parser* parser);
+static ASTNode* continue_statement(Parser* parser);
 static ASTNode* assignment_statement(Parser* parser);
 static ASTNode* expression_statement(Parser* parser);
 static ASTNode* block(Parser* parser);
@@ -314,6 +316,8 @@ static ASTNode* statement(Parser* parser) {
     if (check(parser, TOKEN_FOR))    return for_statement(parser);
     if (check(parser, TOKEN_RETURN)) return return_statement(parser);
     if (check(parser, TOKEN_PASS))   return pass_statement(parser);
+    if (check(parser, TOKEN_BREAK))    return break_statement(parser);
+    if (check(parser, TOKEN_CONTINUE)) return continue_statement(parser);
     if (check(parser, TOKEN_IDENTIFIER)) {
         Token* next = peek_at(parser, 1);
         if (next && next->type == TOKEN_EQUALS) {
@@ -340,6 +344,20 @@ static ASTNode* pass_statement(Parser* parser) {
     Token* pass_token = advance(parser);
     match(parser, TOKEN_NEWLINE);
     return ast_pass(pass_token->line, pass_token->column);
+}
+
+// break_statement -> "break" NEWLINE?
+static ASTNode* break_statement(Parser* parser) {
+    Token* break_token = advance(parser);
+    match(parser, TOKEN_NEWLINE);
+    return ast_break(break_token->line, break_token->column);
+}
+
+// continue_statement -> "continue" NEWLINE?
+static ASTNode* continue_statement(Parser* parser) {
+    Token* continue_token = advance(parser);
+    match(parser, TOKEN_NEWLINE);
+    return ast_continue(continue_token->line, continue_token->column);
 }
 
 // assignment_statement -> IDENTIFIER "=" expression NEWLINE?

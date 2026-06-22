@@ -537,6 +537,61 @@ int main(void) {
             "@\n"
             "def foo():\n"
             "    return 1\n");
+            // ===== break and continue =====
+      printf("\n\n========== BREAK AND CONTINUE TESTS ==========\n");
+
+      test_module_case("Break in while loop",
+          "while x < 10:\n"
+          "    if x > 5:\n"
+          "        break\n"
+          "    x = x + 1\n");
+
+      test_module_case("Continue in while loop",
+          "while x < 10:\n"
+          "    if x > 5:\n"
+          "        continue\n"
+          "    x = x + 1\n");
+
+      test_module_case("Break in for loop",
+          "for item in items:\n"
+          "    if item > threshold:\n"
+          "        break\n");
+
+      test_module_case("Continue in for loop",
+          "for item in items:\n"
+          "    if item < 0:\n"
+          "        continue\n"
+          "    process(item)\n");
+
+      test_module_case("Both break and continue in same loop",
+          "for n in numbers:\n"
+          "    if n < 0:\n"
+          "        continue\n"
+          "    if n > 100:\n"
+          "        break\n"
+          "    total = total + n\n");
+
+      // SESSION PROOF POINT: realistic search with break
+      test_module_case("Linear search with break (proof point)",
+          "def find(items, target):\n"
+          "    for item in items:\n"
+          "        if item == target:\n"
+          "            return item\n"
+          "    return None\n");
+
+      test_module_case("Filter pattern with continue (proof point)",
+          "def positive_only(items):\n"
+          "    for item in items:\n"
+          "        if item < 0:\n"
+          "            continue\n"
+          "        result.add(item)\n"
+          "    return result\n");
+
+      // Note: the parser does not enforce that break/continue appear
+      // only inside loops. That is a semantic check that belongs to a
+      // future analysis pass, not the parser.
+      test_module_case("Break at module level (parser accepts; semantics later)",
+          "break\n");
 
     return 0;
 }

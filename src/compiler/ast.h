@@ -25,6 +25,8 @@ typedef enum {
     AST_ASSIGNMENT,
     AST_RETURN,
     AST_PASS,
+    AST_BREAK,
+    AST_CONTINUE,
     // Compound statements
     AST_BLOCK,
     AST_IF,
@@ -211,6 +213,8 @@ ASTNode* ast_expression_stmt(ASTNode* expression, int line, int column);
 ASTNode* ast_assignment(ASTNode* target, ASTNode* value, int line, int column);
 ASTNode* ast_return(ASTNode* value, int line, int column);
 ASTNode* ast_pass(int line, int column);
+ASTNode* ast_break(int line, int column);
+ASTNode* ast_continue(int line, int column);
 
 // === Compound statement constructors ===
 

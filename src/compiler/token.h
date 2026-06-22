@@ -13,6 +13,8 @@ typedef enum {
     TOKEN_DEF,
     TOKEN_RETURN,
     TOKEN_PASS,
+    TOKEN_BREAK,
+    TOKEN_CONTINUE,
     TOKEN_IF,
     TOKEN_ELSE,
     TOKEN_FOR,

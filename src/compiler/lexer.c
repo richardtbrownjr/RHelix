@@ -16,6 +16,8 @@ static Keyword keywords[] = {
     {"def", TOKEN_DEF},
     {"return", TOKEN_RETURN},
     {"pass", TOKEN_PASS},
+    {"break", TOKEN_BREAK},
+    {"continue", TOKEN_CONTINUE},
     {"if", TOKEN_IF},
     {"else", TOKEN_ELSE},
     {"for", TOKEN_FOR},
