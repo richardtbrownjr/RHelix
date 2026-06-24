@@ -34,6 +34,9 @@ static Keyword keywords[] = {
     {"True", TOKEN_TRUE},
     {"False", TOKEN_FALSE},
     {"None", TOKEN_NONE},
+    {"and", TOKEN_AND},
+    {"or", TOKEN_OR},
+    {"not", TOKEN_NOT},
     {NULL, 0}
 };
 

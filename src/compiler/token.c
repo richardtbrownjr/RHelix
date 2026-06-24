@@ -51,6 +51,9 @@ const char* token_type_to_string(TokenType type) {
         case TOKEN_TRUE: return "TRUE";
         case TOKEN_FALSE: return "FALSE";
         case TOKEN_NONE: return "NONE";
+        case TOKEN_AND: return "AND";
+        case TOKEN_OR: return "OR";
+        case TOKEN_NOT: return "NOT";
 
         // Memory keywords
         case TOKEN_WITH: return "WITH";
