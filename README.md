@@ -26,8 +26,8 @@ production-ready and is not intended to be.
 
 The compiler frontend is substantially complete. RHelix source code with
 function declarations, type annotations, control flow, data access, classes
-with inheritance, decorators, and loop control parses into a well-formed AST.
-Semantic analysis and code generation are not yet implemented.
+with inheritance, decorators, loop control, and boolean logic parses into a
+well-formed AST. Semantic analysis and code generation are not yet implemented.
 
 The repo can parse this without complaint:
 
@@ -41,19 +41,15 @@ class Buffer(Stream):
 @cached
 def find_first(items, predicate):
     for item in items:
-        if predicate(item):
+        if predicate(item) and not item.expired:
             return item
     return None
 
-def filter_clean(values):
-    result = Bag()
-    for v in values:
-        if v < 0:
-            continue
-        if v > max_allowed:
-            break
-        result.add(v)
-    return result
+def withdraw(account, amount):
+    if amount > 0 and amount < account.balance and not account.frozen:
+        account.balance = account.balance - amount
+        return True
+    return False
 ```
 
 ## Implemented
@@ -68,8 +64,8 @@ def filter_clean(values):
 - [x] EOF dedent closure for unclosed blocks
 - [x] Full token set including lambdas (`=>`) and pipelines (`|>`)
 - [x] Keyword recognition: `def`, `class`, `if`, `else`, `while`, `for`, `in`,
-      `return`, `pass`, `break`, `continue`, `True`, `False`, `None`,
-      `with`, `as`
+      `return`, `pass`, `break`, `continue`, `and`, `or`, `not`,
+      `True`, `False`, `None`, `with`, `as`
 
 ### AST
 - [x] Tagged union representation with line/column tracking on every node
@@ -77,8 +73,8 @@ def filter_clean(values):
 - [x] Pretty-printer for debugging
 
 ### Parser
-- [x] Recursive descent with six precedence levels
-      (equality, comparison, term, factor, unary, postfix)
+- [x] Recursive descent with eight precedence levels
+      (logical_or, logical_and, equality, comparison, term, factor, unary, postfix)
 - [x] Left-associative binary operators, right-associative unary
 - [x] Parenthesized grouping
 - [x] First-error-wins reporting with line/column information
@@ -97,6 +93,9 @@ def filter_clean(values):
 
 ### Expression parsing
 - [x] All arithmetic, comparison, and equality operators
+- [x] Logical operators (`and`, `or`, `not`) with correct precedence:
+      `not` binds tightest, then `and`, then `or` — comparison binds
+      tighter than `and`, matching most C-family languages
 - [x] Function call expressions (postfix `()` with comma-separated args)
 - [x] Chained calls (`foo()()`)
 - [x] Subscripts (`arr[i]`) — chains naturally to `arr[i][j]`
@@ -176,6 +175,14 @@ times. Decorators reuse the same `call()` function to parse what follows
 `@`, which is why `@name`, `@name(args)`, `@module.name`, and
 `@module.name(args)` all work without new parser code.
 
+**Logical operators share existing AST nodes.** `and` and `or` produce
+`AST_BINARY` nodes with new token types in the operator field; `not` produces
+`AST_UNARY` with `TOKEN_NOT`. No new AST node types were added — the precedence
+chain grew by two functions (`logical_or` and `logical_and`) and `unary`
+extended its check to include `TOKEN_NOT`. This is a useful reminder that
+new operators rarely need new AST shapes — most fit into the binary/unary
+buckets that already exist.
+
 **Decorator names are not lexer keywords.** `@arena` and `@parallel` are
 significant to RHelix's design, but at parse time they are ordinary
 identifiers. The semantic analyzer is where these names will pick up
@@ -206,7 +213,8 @@ utilities.
 - ✅ Inheritance and `pass` statement
 - ✅ Decorators on functions and classes (uniform postfix expression after `@`)
 - ✅ Loop control: `break` and `continue`
-- 🚧 `with` blocks and lambda expressions (next)
+- ✅ Logical operators (`and`, `or`, `not`) with precedence integration
+- 🚧 `with` blocks and assignment to subscripts/attributes (next)
 
 ## License
 
