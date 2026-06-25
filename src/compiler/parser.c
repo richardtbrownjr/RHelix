@@ -87,6 +87,8 @@ static Token* consume(Parser* parser, TokenType type, const char* message) {
 // ===== Forward declarations =====
 
 static ASTNode* expression(Parser* parser);
+static ASTNode* logical_or(Parser* parser);
+static ASTNode* logical_and(Parser* parser);
 static ASTNode* equality(Parser* parser);
 static ASTNode* comparison(Parser* parser);
 static ASTNode* term(Parser* parser);
@@ -113,9 +115,33 @@ static ASTNode* decorated_statement(Parser* parser);
 // ===== Expression grammar =====
 
 static ASTNode* expression(Parser* parser) {
-    return equality(parser);
+    return logical_or(parser);
+}
+// logical_or -> logical_and ( "or" logical_and )*
+static ASTNode* logical_or(Parser* parser) {
+    ASTNode* left = logical_and(parser);
+    if (!left) return NULL;
+    while (check(parser, TOKEN_OR)) {
+        Token* op = advance(parser);
+        ASTNode* right = logical_and(parser);
+        if (!right) { ast_destroy(left); return NULL; }
+        left = ast_binary(op->type, left, right, op->line, op->column);
+    }
+    return left;
 }
 
+// logical_and -> equality ( "and" equality )*
+static ASTNode* logical_and(Parser* parser) {
+    ASTNode* left = equality(parser);
+    if (!left) return NULL;
+    while (check(parser, TOKEN_AND)) {
+        Token* op = advance(parser);
+        ASTNode* right = equality(parser);
+        if (!right) { ast_destroy(left); return NULL; }
+        left = ast_binary(op->type, left, right, op->line, op->column);
+    }
+    return left;
+}
 static ASTNode* equality(Parser* parser) {
     ASTNode* left = comparison(parser);
     if (!left) return NULL;
@@ -167,7 +193,7 @@ static ASTNode* factor(Parser* parser) {
 }
 
 static ASTNode* unary(Parser* parser) {
-    if (check(parser, TOKEN_MINUS)) {
+    if (check(parser, TOKEN_MINUS) || check(parser, TOKEN_NOT)) {
         Token* op = advance(parser);
         ASTNode* operand = unary(parser);
         if (!operand) return NULL;
