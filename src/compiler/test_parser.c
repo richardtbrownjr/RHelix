@@ -592,6 +592,43 @@ int main(void) {
       // future analysis pass, not the parser.
       test_module_case("Break at module level (parser accepts; semantics later)",
           "break\n");
+          // ===== Logical operators (and / or / not) =====
+              printf("\n\n========== LOGICAL OPERATOR TESTS ==========\n");
 
+              // Simple cases
+              test_parser_case("Simple and", "x and y");
+              test_parser_case("Simple or", "x or y");
+              test_parser_case("Simple not", "not x");
+
+              // Precedence: and binds tighter than or
+              test_parser_case("And binds tighter than or",
+                               "a or b and c");
+
+              // Precedence: comparison binds tighter than and
+              test_parser_case("Comparison binds tighter than and",
+                               "x > 0 and y < 10");
+
+              // Three-way logical chains
+              test_parser_case("Three-way and chain", "a and b and c");
+              test_parser_case("Three-way or chain",  "a or b or c");
+
+              // Not with comparison and double-not
+              test_parser_case("Not with comparison", "not x == y");
+              test_parser_case("Double not", "not not x");
+
+              // SESSION PROOF POINTS
+              test_parser_case("Range check (proof point)",
+                               "x > 0 and x < 100");
+              test_parser_case("Mixed guard (proof point)",
+                               "user.active and not user.banned or admin");
+
+              // Inside statements
+              test_module_case("Logical in if condition",
+                  "if x > 0 and x < 10:\n"
+                  "    return x\n");
+
+              test_module_case("Logical in while condition",
+                  "while running and not done:\n"
+                  "    step()\n");
     return 0;
 }
