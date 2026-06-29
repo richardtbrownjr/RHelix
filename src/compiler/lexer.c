@@ -20,6 +20,7 @@ static Keyword keywords[] = {
     {"continue", TOKEN_CONTINUE},
     {"if", TOKEN_IF},
     {"else", TOKEN_ELSE},
+    {"elif", TOKEN_ELIF},
     {"for", TOKEN_FOR},
     {"in", TOKEN_IN},
     {"and", TOKEN_AND},

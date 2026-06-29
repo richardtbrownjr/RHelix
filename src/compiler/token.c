@@ -43,6 +43,7 @@ const char* token_type_to_string(TokenType type) {
         case TOKEN_CONTINUE: return "CONTINUE";
         case TOKEN_IF: return "IF";
         case TOKEN_ELSE: return "ELSE";
+          case TOKEN_ELIF: return "ELIF";
         case TOKEN_FOR: return "FOR";
         case TOKEN_IN: return "IN";
         case TOKEN_AND: return "AND";

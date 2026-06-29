@@ -17,6 +17,7 @@ typedef enum {
     TOKEN_CONTINUE,
     TOKEN_IF,
     TOKEN_ELSE,
+    TOKEN_ELIF,
     TOKEN_FOR,
     TOKEN_IN,
     TOKEN_AND,
