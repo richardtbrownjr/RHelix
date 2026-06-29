@@ -684,6 +684,44 @@ int main(void) {
 
         test_module_case("Error: binary expression as assignment target",
             "a + b = 5\n");
-            
+            // ===== elif chains =====
+        printf("\n\n========== ELIF CHAIN TESTS ==========\n");
+
+        test_module_case("Single elif",
+            "if x > 0:\n"
+            "    a = 1\n"
+            "elif x < 0:\n"
+            "    a = -1\n");
+
+        test_module_case("Elif with final else",
+            "if x > 0:\n"
+            "    a = 1\n"
+            "elif x < 0:\n"
+            "    a = -1\n"
+            "else:\n"
+            "    a = 0\n");
+
+        test_module_case("Multiple elif chain",
+            "if score > 90:\n"
+            "    grade = \"A\"\n"
+            "elif score > 80:\n"
+            "    grade = \"B\"\n"
+            "elif score > 70:\n"
+            "    grade = \"C\"\n"
+            "else:\n"
+            "    grade = \"D\"\n");
+
+        // SESSION PROOF POINT - realistic classification
+        test_module_case("Classification method (proof point)",
+            "class Classifier:\n"
+            "    def label(self, value):\n"
+            "        if value > 100:\n"
+            "            return \"high\"\n"
+            "        elif value > 50:\n"
+            "            return \"medium\"\n"
+            "        elif value > 0:\n"
+            "            return \"low\"\n"
+            "        else:\n"
+            "            return \"zero\"\n");
     return 0;
 }

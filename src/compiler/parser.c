@@ -478,7 +478,17 @@ static ASTNode* if_statement(Parser* parser) {
     }
 
     ASTNode* else_block = NULL;
-    if (check(parser, TOKEN_ELSE)) {
+    if (check(parser, TOKEN_ELIF)) {
+        // elif is sugar: parse it as a nested If and wrap in an
+        // implicit else-block of the current If. The recursive call
+        // to if_statement handles the rest of the chain.
+        else_block = if_statement(parser);
+        if (!else_block) {
+            ast_destroy(condition);
+            ast_destroy(then_block);
+            return NULL;
+        }
+    } else if (check(parser, TOKEN_ELSE)) {
         advance(parser);
         if (!consume(parser, TOKEN_COLON, "Expected ':' after else")) {
             ast_destroy(condition);
@@ -497,7 +507,6 @@ static ASTNode* if_statement(Parser* parser) {
             return NULL;
         }
     }
-
     return ast_if(condition, then_block, else_block,
                   if_token->line, if_token->column);
 }
