@@ -85,6 +85,8 @@ def withdraw(account, amount):
 - [x] Assignment, return, expression statements
 - [x] Control flow: `if/else`, `while`, `for ... in`
 - [x] Loop control: `break` and `continue`
+- [x] `elif` chains (parsed as nested if/else, no new AST node)
+- [x] Assignment to attributes and subscripts (`self.x = v`, `arr[i] = v`)
 - [x] `pass` statement for empty bodies
 - [x] Function declarations (`def`) with parameter and return type annotations
 - [x] Class declarations with method bodies
@@ -108,7 +110,6 @@ def withdraw(account, amount):
 - [ ] `with` blocks for scoped memory regions
 - [ ] Lambda expressions using `=>`
 - [ ] Pipeline operator (`|>`)
-- [ ] Assignment to subscripts and attributes (`arr[i] = x`, `obj.field = x`)
 - [ ] Compound type annotations (`List[int]`, `Dict[str, int]`)
 - [ ] Semantic analysis (name resolution, type checking against annotations)
 - [ ] Code generation backend
@@ -214,6 +215,8 @@ utilities.
 - ✅ Decorators on functions and classes (uniform postfix expression after `@`)
 - ✅ Loop control: `break` and `continue`
 - ✅ Logical operators (`and`, `or`, `not`) with precedence integration
+- ✅ Assignment to attributes and subscripts (class methods can mutate state)
+- ✅ `elif` chains for clean multi-way branching
 - 🚧 `with` blocks and assignment to subscripts/attributes (next)
 
 ## License
