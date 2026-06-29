@@ -630,5 +630,60 @@ int main(void) {
               test_module_case("Logical in while condition",
                   "while running and not done:\n"
                   "    step()\n");
+                  // ===== Attribute and Subscript Assignment =====
+        printf("\n\n========== ASSIGNMENT TARGET TESTS ==========\n");
+
+        // Simple identifier assignment still works (regression check)
+        test_module_case("Simple identifier assignment", "x = 5\n");
+
+        // Attribute assignment - the self.x = value pattern
+        test_module_case("Attribute assignment",
+            "self.value = 42\n");
+
+        test_module_case("Chained attribute assignment",
+            "obj.field.nested = 100\n");
+
+        // Subscript assignment - the arr[i] = value pattern
+        test_module_case("Subscript assignment",
+            "arr[0] = 99\n");
+
+        test_module_case("Subscript with expression index",
+            "grid[i + 1] = value\n");
+
+        test_module_case("Chained subscript assignment",
+            "matrix[i][j] = 0\n");
+
+        // Mixed compositions - exercising the full postfix chain
+        test_module_case("Attribute then subscript assignment",
+            "obj.items[0] = new_value\n");
+
+        test_module_case("Subscript then attribute assignment",
+            "arr[0].name = \"hello\"\n");
+
+        // SESSION PROOF POINT - class methods can finally mutate state
+        test_module_case("Class method with state mutation (proof point)",
+            "class Counter:\n"
+            "    def increment(self):\n"
+            "        self.value = self.value + 1\n"
+            "        return self.value\n");
+
+        test_module_case("Realistic method using all forms",
+            "class Account:\n"
+            "    def withdraw(self, amount):\n"
+            "        self.balance = self.balance - amount\n"
+            "        self.transactions[self.count] = amount\n"
+            "        self.count = self.count + 1\n"
+            "        return self.balance\n");
+
+        // Error cases - invalid assignment targets
+        test_module_case("Error: literal as assignment target",
+            "5 = x\n");
+
+        test_module_case("Error: call result as assignment target",
+            "foo() = 10\n");
+
+        test_module_case("Error: binary expression as assignment target",
+            "a + b = 5\n");
+            
     return 0;
 }

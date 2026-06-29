@@ -344,12 +344,7 @@ static ASTNode* statement(Parser* parser) {
     if (check(parser, TOKEN_PASS))   return pass_statement(parser);
     if (check(parser, TOKEN_BREAK))    return break_statement(parser);
     if (check(parser, TOKEN_CONTINUE)) return continue_statement(parser);
-    if (check(parser, TOKEN_IDENTIFIER)) {
-        Token* next = peek_at(parser, 1);
-        if (next && next->type == TOKEN_EQUALS) {
-            return assignment_statement(parser);
-        }
-    }
+
     return expression_statement(parser);
 }
 
@@ -400,10 +395,36 @@ static ASTNode* assignment_statement(Parser* parser) {
 }
 
 // expression_statement -> expression NEWLINE?
+// expression_statement -> expression ( "=" expression )? NEWLINE?
+//
+// We parse the left side as a full expression, then check if "=" follows.
+// If yes, the expression must be a valid assignment target (Identifier,
+// Attribute, or Subscript) and we build an Assignment node. If no, the
+// expression stands alone as an ExpressionStmt. This pattern matches how
+// Python and most production parsers handle assignment - parse-then-classify
+// rather than predict-then-parse.
 static ASTNode* expression_statement(Parser* parser) {
     Token* token = peek(parser);
     ASTNode* expr = expression(parser);
     if (!expr) return NULL;
+
+    if (match(parser, TOKEN_EQUALS)) {
+        if (expr->type != AST_IDENTIFIER &&
+            expr->type != AST_ATTRIBUTE &&
+            expr->type != AST_SUBSCRIPT) {
+            parser_error(parser, "Invalid assignment target");
+            ast_destroy(expr);
+            return NULL;
+        }
+        ASTNode* value = expression(parser);
+        if (!value) {
+            ast_destroy(expr);
+            return NULL;
+        }
+        match(parser, TOKEN_NEWLINE);
+        return ast_assignment(expr, value, token->line, token->column);
+    }
+
     match(parser, TOKEN_NEWLINE);
     return ast_expression_stmt(expr, token->line, token->column);
 }
