@@ -32,6 +32,7 @@ typedef enum {
     AST_IF,
     AST_WHILE,
     AST_FOR,
+    AST_WITH,
     // Declarations
     AST_FUNCTION_DEF,
     AST_CLASS_DEF,
@@ -121,6 +122,12 @@ typedef struct {
     ASTNode* body;
 } ASTFor;
 
+typedef struct {
+    ASTNode* context;    // Expression being entered (e.g., arena(1024))
+    char* var_name;      // Optional binding name (as IDENT); NULL if absent
+    ASTNode* body;       // AST_BLOCK
+} ASTWith;
+
 // === Declaration payloads ===
 
 typedef struct {
@@ -184,6 +191,7 @@ struct ASTNode {
         ASTIf if_stmt;
         ASTWhile while_stmt;
         ASTFor for_stmt;
+        ASTWith with_stmt;
         ASTFunctionDef function_def;
         ASTClassDef class_def;
         ASTModule module;
@@ -226,6 +234,8 @@ ASTNode* ast_while(ASTNode* condition, ASTNode* body, int line, int column);
 ASTNode* ast_for(const char* var_name, ASTNode* iterable, ASTNode* body,
                  int line, int column);
 
+ASTNode* ast_with(ASTNode* context, const char* var_name, ASTNode* body,
+                  int line, int column);
 // === Declaration constructors ===
 
 ASTNode* ast_function_def(const char* name, ASTNode* return_type,

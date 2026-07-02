@@ -199,6 +199,16 @@ ASTNode* ast_for(const char* var_name, ASTNode* iterable, ASTNode* body,
     return node;
 }
 
+ASTNode* ast_with(ASTNode* context, const char* var_name, ASTNode* body,
+                  int line, int column) {
+    ASTNode* node = make_node(AST_WITH, line, column);
+    if (!node) return NULL;
+    node->as.with_stmt.context = context;
+    node->as.with_stmt.var_name = var_name ? strdup(var_name) : NULL;
+    node->as.with_stmt.body = body;
+    return node;
+}
+
 // ===== Declaration constructors =====
 
 ASTNode* ast_function_def(const char* name, ASTNode* return_type,
@@ -379,6 +389,11 @@ void ast_destroy(ASTNode* node) {
             ast_destroy(node->as.for_stmt.iterable);
             ast_destroy(node->as.for_stmt.body);
             break;
+      case AST_WITH:
+          ast_destroy(node->as.with_stmt.context);
+          free(node->as.with_stmt.var_name);
+          ast_destroy(node->as.with_stmt.body);
+          break;
         case AST_FUNCTION_DEF:
             free(node->as.function_def.name);
             for (int i = 0; i < node->as.function_def.param_count; i++) {
@@ -595,6 +610,19 @@ void ast_print(ASTNode* node, int indent) {
             printf("Body:\n");
             ast_print(node->as.for_stmt.body, indent + 2);
             break;
+      case AST_WITH:
+          printf("With\n");
+          print_indent(indent + 1);
+          printf("Context:\n");
+          ast_print(node->as.with_stmt.context, indent + 2);
+          if (node->as.with_stmt.var_name) {
+              print_indent(indent + 1);
+              printf("Var: %s\n", node->as.with_stmt.var_name);
+          }
+          print_indent(indent + 1);
+          printf("Body:\n");
+          ast_print(node->as.with_stmt.body, indent + 2);
+          break;
         case AST_FUNCTION_DEF:
             printf("FunctionDef(%s)\n",
                    node->as.function_def.name ? node->as.function_def.name : "");
