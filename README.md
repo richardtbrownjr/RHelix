@@ -87,6 +87,7 @@ def withdraw(account, amount):
 - [x] Loop control: `break` and `continue`
 - [x] `elif` chains (parsed as nested if/else, no new AST node)
 - [x] Assignment to attributes and subscripts (`self.x = v`, `arr[i] = v`)
+- [x] `with` blocks with optional `as` binding (`with arena(1024) as buf:`)
 - [x] `pass` statement for empty bodies
 - [x] Function declarations (`def`) with parameter and return type annotations
 - [x] Class declarations with method bodies
@@ -107,7 +108,6 @@ def withdraw(account, amount):
 
 ## In Progress
 
-- [ ] `with` blocks for scoped memory regions
 - [ ] Lambda expressions using `=>`
 - [ ] Pipeline operator (`|>`)
 - [ ] Compound type annotations (`List[int]`, `Dict[str, int]`)
@@ -217,7 +217,8 @@ utilities.
 - ✅ Logical operators (`and`, `or`, `not`) with precedence integration
 - ✅ Assignment to attributes and subscripts (class methods can mutate state)
 - ✅ `elif` chains for clean multi-way branching
-- 🚧 `with` blocks and assignment to subscripts/attributes (next)
+- ✅ `with` blocks with optional `as` binding (RHelix performance-primitive surface complete)
+- 🚧 Lambda expressions and pipeline operator (next)
 
 ## License
 
