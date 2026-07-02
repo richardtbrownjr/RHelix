@@ -723,5 +723,26 @@ int main(void) {
             "            return \"low\"\n"
             "        else:\n"
             "            return \"zero\"\n");
+            // ===== with blocks =====
+      printf("\n\n========== WITH BLOCK TESTS ==========\n");
+
+      test_module_case("Simple with",
+          "with resource:\n"
+          "    use(resource)\n");
+
+      test_module_case("With as binding",
+          "with arena(1024) as buffer:\n"
+          "    buffer.write(data)\n");
+
+      test_module_case("With inside class method (proof point)",
+          "class Buffer:\n"
+          "    def write(self, data):\n"
+          "        with self.lock as l:\n"
+          "            return self.append(data)\n");
+
+      test_module_case("Error: missing colon",
+          "with resource\n"
+          "    use(resource)\n");
+          
     return 0;
 }

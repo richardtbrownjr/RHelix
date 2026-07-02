@@ -58,6 +58,7 @@ const char* token_type_to_string(TokenType type) {
 
         // Memory keywords
         case TOKEN_WITH: return "WITH";
+        case TOKEN_AS: return "AS";
         case TOKEN_STACK: return "STACK";
         case TOKEN_ALLOC: return "ALLOC";
         case TOKEN_MOVE: return "MOVE";

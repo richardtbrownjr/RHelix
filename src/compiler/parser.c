@@ -108,6 +108,7 @@ static ASTNode* block(Parser* parser);
 static ASTNode* if_statement(Parser* parser);
 static ASTNode* while_statement(Parser* parser);
 static ASTNode* for_statement(Parser* parser);
+static ASTNode* with_statement(Parser* parser);
 static ASTNode* function_def_statement(Parser* parser);
 static ASTNode* class_def_statement(Parser* parser);
 static ASTNode* decorated_statement(Parser* parser);
@@ -340,6 +341,7 @@ static ASTNode* statement(Parser* parser) {
     if (check(parser, TOKEN_IF))     return if_statement(parser);
     if (check(parser, TOKEN_WHILE))  return while_statement(parser);
     if (check(parser, TOKEN_FOR))    return for_statement(parser);
+    if (check(parser, TOKEN_WITH))   return with_statement(parser);
     if (check(parser, TOKEN_RETURN)) return return_statement(parser);
     if (check(parser, TOKEN_PASS))   return pass_statement(parser);
     if (check(parser, TOKEN_BREAK))    return break_statement(parser);
@@ -570,6 +572,48 @@ static ASTNode* for_statement(Parser* parser) {
 
     return ast_for(var_token->lexeme, iterable, body,
                    for_token->line, for_token->column);
+}
+
+// with_statement -> "with" expression ( "as" IDENTIFIER )? ":" NEWLINE block
+//
+// The context expression is anything the expression parser produces - a call
+// like arena(1024), an identifier like resource, an attribute like self.pool.
+// The 'as' binding is optional; when absent, var_name is NULL. The body is
+// a regular indented block.
+static ASTNode* with_statement(Parser* parser) {
+    Token* with_token = advance(parser);  // Consume WITH
+
+    ASTNode* context = expression(parser);
+    if (!context) return NULL;
+
+    char* var_name = NULL;
+    if (match(parser, TOKEN_AS)) {
+        if (!check(parser, TOKEN_IDENTIFIER)) {
+            parser_error(parser, "Expected identifier after 'as'");
+            ast_destroy(context);
+            return NULL;
+        }
+        Token* name_tok = advance(parser);
+        var_name = name_tok->lexeme;  // ast_with will strdup this
+    }
+
+    if (!consume(parser, TOKEN_COLON, "Expected ':' after with context")) {
+        ast_destroy(context);
+        return NULL;
+    }
+    if (!consume(parser, TOKEN_NEWLINE, "Expected newline after ':'")) {
+        ast_destroy(context);
+        return NULL;
+    }
+
+    ASTNode* body = block(parser);
+    if (!body) {
+        ast_destroy(context);
+        return NULL;
+    }
+
+    return ast_with(context, var_name, body,
+                    with_token->line, with_token->column);
 }
 
 // Helper: parse a single parameter "IDENT ( : IDENT )?"

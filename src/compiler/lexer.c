@@ -30,6 +30,7 @@ static Keyword keywords[] = {
     {"class", TOKEN_CLASS},
     {"import", TOKEN_IMPORT},
     {"with", TOKEN_WITH},
+    {"as", TOKEN_AS},
     {"stack", TOKEN_STACK},
     {"alloc", TOKEN_ALLOC},
     {"move", TOKEN_MOVE},
