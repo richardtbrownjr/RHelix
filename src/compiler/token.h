@@ -53,7 +53,7 @@ typedef enum {
     TOKEN_LESS_EQUALS,
     TOKEN_GREATER_EQUALS,
     TOKEN_ARROW,        // ->
-    TOKEN_PIPE,         // |>
+    TOKEN_PIPELINE,     // |>
     TOKEN_FAT_ARROW,    // =>
 
     // Delimiters

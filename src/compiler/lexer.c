@@ -349,7 +349,7 @@ Token* lexer_next_token(Lexer* lexer) {
 
         case '|':
             if (match(lexer, '>')) {
-                return make_token(lexer, TOKEN_PIPE, start);
+                return make_token(lexer, TOKEN_PIPELINE, start);
             }
             return make_error(lexer, "Unexpected character '|'");
 
