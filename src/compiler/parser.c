@@ -87,6 +87,7 @@ static Token* consume(Parser* parser, TokenType type, const char* message) {
 // ===== Forward declarations =====
 
 static ASTNode* expression(Parser* parser);
+static ASTNode* pipeline(Parser* parser);
 static ASTNode* logical_or(Parser* parser);
 static ASTNode* logical_and(Parser* parser);
 static ASTNode* equality(Parser* parser);
@@ -116,7 +117,24 @@ static ASTNode* decorated_statement(Parser* parser);
 // ===== Expression grammar =====
 
 static ASTNode* expression(Parser* parser) {
-    return logical_or(parser);
+    return pipeline(parser);
+}
+
+// pipeline -> logical_or ( "|>" logical_or )*
+//
+// Left-associative pipe. Lower precedence than logical_or so that
+// "x + 1 |> double" parses as "(x + 1) |> double", not "x + (1 |> double)".
+// Reuses AST_BINARY with TOKEN_PIPELINE as the operator.
+static ASTNode* pipeline(Parser* parser) {
+    ASTNode* left = logical_or(parser);
+    if (!left) return NULL;
+    while (check(parser, TOKEN_PIPELINE)) {
+        Token* op = advance(parser);
+        ASTNode* right = logical_or(parser);
+        if (!right) { ast_destroy(left); return NULL; }
+        left = ast_binary(op->type, left, right, op->line, op->column);
+    }
+    return left;
 }
 // logical_or -> logical_and ( "or" logical_and )*
 static ASTNode* logical_or(Parser* parser) {

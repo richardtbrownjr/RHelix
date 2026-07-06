@@ -743,6 +743,21 @@ int main(void) {
       test_module_case("Error: missing colon",
           "with resource\n"
           "    use(resource)\n");
-          
+          // ===== Pipeline operator =====
+        printf("\n\n========== PIPELINE OPERATOR TESTS ==========\n");
+
+        test_parser_case("Simple pipe", "data |> transform");
+        test_parser_case("Chained pipes", "data |> filter |> transform |> sum");
+        test_parser_case("Pipe with call on right",
+                         "data |> filter(is_valid)");
+        test_parser_case("Arithmetic binds tighter than pipe",
+                         "x + 1 |> double");
+
+        // SESSION PROOF POINT
+        test_module_case("Pipeline in class method",
+            "class Pipeline:\n"
+            "    def process(self, data):\n"
+            "        return data |> self.clean |> self.transform\n");
+
     return 0;
 }
