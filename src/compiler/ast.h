@@ -35,6 +35,7 @@ typedef enum {
     AST_WITH,
     // Declarations
     AST_FUNCTION_DEF,
+    AST_LAMBDA,
     AST_CLASS_DEF,
     // Top level
     AST_MODULE
@@ -148,6 +149,13 @@ typedef struct {
 } ASTFunctionDef;
 
 typedef struct {
+    char** param_names;  // Array of parameter names (strings, owned)
+    int param_count;
+    int param_capacity;
+    ASTNode* body;       // Single expression (lambdas are expression-bodied)
+} ASTLambda;
+
+typedef struct {
     char* name;
     ASTNode** base_classes;      // Dynamic array of identifier nodes
     int base_count;
@@ -193,6 +201,7 @@ struct ASTNode {
         ASTFor for_stmt;
         ASTWith with_stmt;
         ASTFunctionDef function_def;
+        ASTLambda lambda;
         ASTClassDef class_def;
         ASTModule module;
         // AST_PASS, AST_LITERAL_NONE have no payload
@@ -242,6 +251,10 @@ ASTNode* ast_function_def(const char* name, ASTNode* return_type,
                           ASTNode* body, int line, int column);
 void ast_function_def_add_param(ASTNode* func_def, const char* param_name,
                                 ASTNode* type_annotation);
+
+ASTNode* ast_lambda(ASTNode* body, int line, int column);
+void ast_lambda_add_param(ASTNode* lambda, const char* param_name);
+
 ASTNode* ast_class_def(const char* name, ASTNode* body, int line, int column);
 void ast_class_def_add_base(ASTNode* class_def, const char* base_name,
                             int line, int column);

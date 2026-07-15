@@ -240,6 +240,27 @@ void ast_function_def_add_param(ASTNode* func_def, const char* param_name,
     f->params[f->param_count].type_annotation = type_annotation;
     f->param_count++;
 }
+ASTNode* ast_lambda(ASTNode* body, int line, int column) {
+    ASTNode* node = make_node(AST_LAMBDA, line, column);
+    if (!node) return NULL;
+    node->as.lambda.param_names = NULL;
+    node->as.lambda.param_count = 0;
+    node->as.lambda.param_capacity = 0;
+    node->as.lambda.body = body;
+    return node;
+}
+
+void ast_lambda_add_param(ASTNode* lambda, const char* param_name) {
+    if (!lambda || lambda->type != AST_LAMBDA || !param_name) return;
+    ASTLambda* l = &lambda->as.lambda;
+    if (l->param_count >= l->param_capacity) {
+        int new_cap = l->param_capacity == 0 ? 4 : l->param_capacity * 2;
+        l->param_names = (char**)realloc(l->param_names, sizeof(char*) * new_cap);
+        l->param_capacity = new_cap;
+    }
+    l->param_names[l->param_count] = strdup(param_name);
+    l->param_count++;
+}
 
 ASTNode* ast_class_def(const char* name, ASTNode* body, int line, int column) {
     ASTNode* node = make_node(AST_CLASS_DEF, line, column);
@@ -412,6 +433,13 @@ void ast_destroy(ASTNode* node) {
             }
             free(node->as.function_def.decorators);
             break;
+      case AST_LAMBDA:
+          for (int i = 0; i < node->as.lambda.param_count; i++) {
+              free(node->as.lambda.param_names[i]);
+          }
+          free(node->as.lambda.param_names);
+          ast_destroy(node->as.lambda.body);
+          break;
         case AST_CLASS_DEF:
             free(node->as.class_def.name);
             for (int i = 0; i < node->as.class_def.base_count; i++) {
@@ -455,6 +483,7 @@ const char* ast_node_type_to_string(ASTNodeType type) {
         case AST_ASSIGNMENT: return "Assignment";
         case AST_RETURN: return "Return";
         case AST_PASS: return "Pass";
+        case AST_LAMBDA: return "Lambda";
         case AST_BREAK: return "Break";
         case AST_CONTINUE: return "Continue";
         case AST_BLOCK: return "Block";
@@ -654,6 +683,18 @@ void ast_print(ASTNode* node, int indent) {
             printf("Body:\n");
             ast_print(node->as.function_def.body, indent + 2);
             break;
+      case AST_LAMBDA:
+          printf("Lambda\n");
+          print_indent(indent + 1);
+          printf("Params(%d):\n", node->as.lambda.param_count);
+          for (int i = 0; i < node->as.lambda.param_count; i++) {
+              print_indent(indent + 2);
+              printf("Param(%s)\n", node->as.lambda.param_names[i]);
+          }
+          print_indent(indent + 1);
+          printf("Body:\n");
+          ast_print(node->as.lambda.body, indent + 2);
+          break;
         case AST_CLASS_DEF:
             printf("ClassDef(%s)\n",
                    node->as.class_def.name ? node->as.class_def.name : "");
