@@ -758,6 +758,15 @@ int main(void) {
             "class Pipeline:\n"
             "    def process(self, data):\n"
             "        return data |> self.clean |> self.transform\n");
+            // ===== Lambda expressions (unparenthesized single-param) =====
+        printf("\n\n========== LAMBDA TESTS ==========\n");
+
+        test_parser_case("Simple single-param lambda", "x => x + 1");
+        test_parser_case("Lambda body with call", "x => transform(x)");
+
+        // SESSION PROOF POINT - functional style with pipeline
+        test_parser_case("Lambda inside pipeline",
+                         "data |> filter(x => x.active)");
 
     return 0;
 }

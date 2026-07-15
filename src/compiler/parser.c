@@ -332,6 +332,16 @@ static ASTNode* primary(Parser* parser) {
         return ast_literal_none(token->line, token->column);
     }
     if (match(parser, TOKEN_IDENTIFIER)) {
+        // Check for unparenthesized single-param lambda: x => body
+        if (check(parser, TOKEN_FAT_ARROW)) {
+            advance(parser);  // Consume =>
+            ASTNode* body = expression(parser);
+            if (!body) return NULL;
+            ASTNode* lambda = ast_lambda(body, token->line, token->column);
+            if (!lambda) { ast_destroy(body); return NULL; }
+            ast_lambda_add_param(lambda, token->lexeme);
+            return lambda;
+        }
         return ast_identifier(token->lexeme, token->line, token->column);
     }
     if (match(parser, TOKEN_LPAREN)) {
