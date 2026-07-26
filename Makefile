@@ -15,12 +15,13 @@ RUNTIME_OBJS = $(BUILD_DIR)/memory_manager.o
 RUNTIME_TEST_SRC = $(RUNTIME_DIR)/test_memory.c
 
 # Compiler files
-COMPILER_SRCS = $(COMPILER_DIR)/token.c $(COMPILER_DIR)/lexer.c $(COMPILER_DIR)/ast.c $(COMPILER_DIR)/parser.c
-COMPILER_OBJS = $(BUILD_DIR)/token.o $(BUILD_DIR)/lexer.o $(BUILD_DIR)/ast.o $(BUILD_DIR)/parser.o
+COMPILER_SRCS = $(COMPILER_DIR)/token.c $(COMPILER_DIR)/lexer.c $(COMPILER_DIR)/ast.c $(COMPILER_DIR)/parser.c $(COMPILER_DIR)/semantic.c
+COMPILER_OBJS = $(BUILD_DIR)/token.o $(BUILD_DIR)/lexer.o $(BUILD_DIR)/ast.o $(BUILD_DIR)/parser.o $(BUILD_DIR)/semantic.o
 LEXER_TEST_SRC = $(COMPILER_DIR)/test_lexer.c
 PARSER_TEST_SRC = $(COMPILER_DIR)/test_parser.c
+SEMANTIC_TEST_SRC = $(COMPILER_DIR)/test_semantic.c
 
-.PHONY: all clean test test-lexer test-parser runtime compiler
+.PHONY: all clean test test-lexer test-parser test-semantic runtime compiler
 
 all: runtime compiler
 
@@ -43,6 +44,8 @@ $(BUILD_DIR)/ast.o: $(COMPILER_DIR)/ast.c | $(BUILD_DIR)
 $(BUILD_DIR)/parser.o: $(COMPILER_DIR)/parser.c | $(BUILD_DIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
+$(BUILD_DIR)/semantic.o: $(COMPILER_DIR)/semantic.c | $(BUILD_DIR)
+	$(CC) $(CFLAGS) -c $< -o $@
 # Library targets
 runtime: $(RUNTIME_OBJS)
 	ar rcs $(BUILD_DIR)/librhelix_runtime.a $(RUNTIME_OBJS)
@@ -64,3 +67,7 @@ test-lexer: | $(BUILD_DIR)
 test-parser: | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(COMPILER_SRCS) $(PARSER_TEST_SRC) -o $(BUILD_DIR)/test_parser
 	./$(BUILD_DIR)/test_parser
+
+test-semantic: | $(BUILD_DIR)
+	$(CC) $(CFLAGS) $(COMPILER_SRCS) $(SEMANTIC_TEST_SRC) -o $(BUILD_DIR)/test_semantic
+	./$(BUILD_DIR)/test_semantic
