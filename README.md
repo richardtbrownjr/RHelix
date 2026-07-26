@@ -89,7 +89,7 @@ def withdraw(account, amount):
 - [x] Assignment to attributes and subscripts (`self.x = v`, `arr[i] = v`)
 - [x] `with` blocks with optional `as` binding (`with arena(1024) as buf:`)
 - [x] Pipeline operator (`|>`) with left-associative chaining (`data |> clean |> transform`)
-- [x] Lambda expressions (`x => body`) — single-param unparenthesized form
+- [x] Lambda expressions — unparenthesized single-param (`x => body`) and parenthesized multi-param (`(x, y) => body`)
 - [x] `pass` statement for empty bodies
 - [x] Function declarations (`def`) with parameter and return type annotations
 - [x] Class declarations with method bodies
@@ -108,11 +108,26 @@ def withdraw(account, amount):
 - [x] Method calls (`obj.method(args)`) via Attribute + Call composition
 - [x] Free composition of all postfix forms: `obj.method(arg).field[0]`
 
+### Semantic Analysis
+- [x] Scope tracking foundation — SemanticAnalyzer walks the AST maintaining a linked-list scope stack
+- [x] Scope kinds: MODULE, FUNCTION, CLASS, BLOCK, LAMBDA — each scope-creating construct pushes its own kind
+- [x] Push/pop discipline verified balanced across nested structures (tested to depth 5 through class → method → with → if → for chain)
+- [x] Exhaustive AST node dispatch — new node types produce compile-time warnings if unhandled
+
 ## In Progress
 
+### Frontend (parser)
 - [ ] Compound type annotations (`List[int]`, `Dict[str, int]`)
-- [ ] Semantic analysis (name resolution, type checking against annotations)
-- [ ] Code generation backend
+
+### Semantic Analysis
+- [ ] Symbol tables (attach a name → definition map to each scope)
+- [ ] Name resolution (identifier references against the scope chain)
+- [ ] break/continue validation (only inside loops)
+- [ ] return validation (only inside functions/lambdas)
+- [ ] Type checking against annotations
+
+### Backend
+- [ ] Code generation
 
 ## Build and Test
 
@@ -219,8 +234,10 @@ utilities.
 - ✅ `elif` chains for clean multi-way branching
 - ✅ `with` blocks with optional `as` binding (RHelix performance-primitive surface complete)
 - ✅ Pipeline operator (`|>`) with correct precedence (arithmetic and logic bind tighter)
-- ✅ Lambda expressions (`x => body`) — unparenthesized single-param form; parenthesized multi-param deferred
-- 🚧 Parenthesized multi-param lambdas and compound type annotations (next)
+- ✅ Lambda expressions — both unparenthesized single-param (`x => body`) and parenthesized multi-param (`(x, y) => body`) forms
+- ✅ Parenthesized multi-param lambdas — lookahead-based disambiguation from grouping
+- ✅ Semantic analyzer foundation — new compiler phase with scope tracking; five scope kinds, exhaustive AST walker, balanced push/pop verified
+- 🚧 Compound type annotations, symbol tables and name resolution (parser and semantic work in parallel from here)
 
 ## License
 
