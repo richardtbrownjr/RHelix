@@ -310,6 +310,49 @@ static ASTNode* call(Parser* parser) {
     return expr;
 }
 
+// is_paren_lambda_ahead - Lookahead helper for parenthesized lambda detection.
+//
+// Called with the parser positioned at an LPAREN. Peeks forward through the
+// token stream (without consuming anything) looking for one of these patterns:
+//   ( ) =>                    -- zero-param lambda
+//   ( IDENT ) =>              -- single-param lambda in parens
+//   ( IDENT , IDENT , ... ) => -- multi-param lambda
+//
+// Returns true if any of those patterns match. Returns false for anything
+// else - the parser will then treat the LPAREN as a normal grouping.
+//
+// This is bounded lookahead (bails on any non-identifier/non-comma) so worst
+// case is linear in the parameter count. No backtracking, no state changes.
+static bool is_paren_lambda_ahead(Parser* parser) {
+    // We should be at LPAREN. Scan starting from offset 1 (just past LPAREN).
+    int offset = 1;
+
+    // Special case: () =>
+    Token* first = peek_at(parser, offset);
+    if (first && first->type == TOKEN_RPAREN) {
+        Token* after = peek_at(parser, offset + 1);
+        return after && after->type == TOKEN_FAT_ARROW;
+    }
+
+    // Otherwise expect: IDENT (, IDENT)* ) =>
+    while (true) {
+        Token* t = peek_at(parser, offset);
+        if (!t || t->type != TOKEN_IDENTIFIER) return false;
+        offset++;
+
+        Token* next = peek_at(parser, offset);
+        if (!next) return false;
+
+        if (next->type == TOKEN_RPAREN) {
+            Token* after = peek_at(parser, offset + 1);
+            return after && after->type == TOKEN_FAT_ARROW;
+        }
+
+        if (next->type != TOKEN_COMMA) return false;
+        offset++;  // Consume the comma, loop back for the next IDENT
+    }
+}
+
 static ASTNode* primary(Parser* parser) {
     Token* token = peek(parser);
 
@@ -344,7 +387,43 @@ static ASTNode* primary(Parser* parser) {
         }
         return ast_identifier(token->lexeme, token->line, token->column);
     }
-    if (match(parser, TOKEN_LPAREN)) {
+    if (check(parser, TOKEN_LPAREN)) {
+        // Two things start with LPAREN: parenthesized lambdas and groupings.
+        // Look ahead to decide which one, then dispatch.
+        if (is_paren_lambda_ahead(parser)) {
+            advance(parser);  // Consume LPAREN
+
+            ASTNode* lambda = ast_lambda(NULL, token->line, token->column);
+            if (!lambda) return NULL;
+
+            // Parse zero-or-more params: IDENT (, IDENT)*
+            if (!check(parser, TOKEN_RPAREN)) {
+                Token* name_tok = advance(parser);  // First IDENT (verified by lookahead)
+                ast_lambda_add_param(lambda, name_tok->lexeme);
+
+                while (match(parser, TOKEN_COMMA)) {
+                    name_tok = advance(parser);  // Next IDENT (verified by lookahead)
+                    ast_lambda_add_param(lambda, name_tok->lexeme);
+                }
+            }
+
+            if (!consume(parser, TOKEN_RPAREN, "Expected ')' after lambda parameters")) {
+                ast_destroy(lambda);
+                return NULL;
+            }
+            if (!consume(parser, TOKEN_FAT_ARROW, "Expected '=>' after lambda parameters")) {
+                ast_destroy(lambda);
+                return NULL;
+            }
+
+            ASTNode* body = expression(parser);
+            if (!body) { ast_destroy(lambda); return NULL; }
+            lambda->as.lambda.body = body;
+            return lambda;
+        }
+
+        // Not a lambda - treat as normal grouping.
+        advance(parser);  // Consume LPAREN
         ASTNode* expr = expression(parser);
         if (!expr) return NULL;
         if (!consume(parser, TOKEN_RPAREN, "Expected ')' after expression")) {

@@ -767,6 +767,27 @@ int main(void) {
         // SESSION PROOF POINT - functional style with pipeline
         test_parser_case("Lambda inside pipeline",
                          "data |> filter(x => x.active)");
+                         // ===== Parenthesized lambdas =====
+                     printf("\n\n========== PARENTHESIZED LAMBDA TESTS ==========\n");
+
+                     test_parser_case("Zero-param lambda", "() => 42");
+                     test_parser_case("Single-param parenthesized lambda", "(x) => x + 1");
+                     test_parser_case("Two-param lambda", "(x, y) => x + y");
+                     test_parser_case("Three-param lambda", "(a, b, c) => a + b + c");
+
+                     test_parser_case("Lambda in pipeline",
+                                      "data |> reduce((acc, x) => acc + x)");
+
+                     test_parser_case("Grouping still works (regression)",
+                                      "(x + 1)");
+
+                     test_parser_case("Grouping in expression (regression)",
+                                      "y = (x + 1) * 2");
+
+                     test_module_case("Reduce with two-param lambda (proof point)",
+                         "class Aggregator:\n"
+                         "    def total(self, items):\n"
+                         "        return items |> reduce((acc, x) => acc + x)\n");
 
     return 0;
 }
