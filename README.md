@@ -92,6 +92,7 @@ def withdraw(account, amount):
 - [x] Lambda expressions — unparenthesized single-param (`x => body`) and parenthesized multi-param (`(x, y) => body`)
 - [x] `pass` statement for empty bodies
 - [x] Function declarations (`def`) with parameter and return type annotations
+- [x] Compound type annotations (`List[int]`, `Dict[str, int]`, nested forms) via subscript reuse
 - [x] Class declarations with method bodies
 - [x] Class inheritance (single and multiple base classes)
 - [x] Decorators on functions and classes (stacked, with optional arguments)
@@ -113,14 +114,15 @@ def withdraw(account, amount):
 - [x] Scope kinds: MODULE, FUNCTION, CLASS, BLOCK, LAMBDA — each scope-creating construct pushes its own kind
 - [x] Push/pop discipline verified balanced across nested structures (tested to depth 5 through class → method → with → if → for chain)
 - [x] Exhaustive AST node dispatch — new node types produce compile-time warnings if unhandled
+- [x] Symbol tables per scope (linked-list buckets, prepend for shadowing, O(1) insert)
+- [x] Symbol kinds — SYM_VARIABLE, SYM_PARAMETER, SYM_FUNCTION, SYM_METHOD, SYM_CLASS — populated during AST walk at 6 sites; methods distinguished from functions by class-scope check
 
 ## In Progress
 
 ### Frontend (parser)
-- [ ] Compound type annotations (`List[int]`, `Dict[str, int]`)
+
 
 ### Semantic Analysis
-- [ ] Symbol tables (attach a name → definition map to each scope)
 - [ ] Name resolution (identifier references against the scope chain)
 - [ ] break/continue validation (only inside loops)
 - [ ] return validation (only inside functions/lambdas)
@@ -237,7 +239,9 @@ utilities.
 - ✅ Lambda expressions — both unparenthesized single-param (`x => body`) and parenthesized multi-param (`(x, y) => body`) forms
 - ✅ Parenthesized multi-param lambdas — lookahead-based disambiguation from grouping
 - ✅ Semantic analyzer foundation — new compiler phase with scope tracking; five scope kinds, exhaustive AST walker, balanced push/pop verified
-- 🚧 Compound type annotations, symbol tables and name resolution (parser and semantic work in parallel from here)
+- ✅ Compound type annotations (`List[int]`, `Dict[str, int]`, nested forms) — completes original frontend scope
+- ✅ Symbol tables per scope with population during AST walk — five symbol kinds, method-vs-function distinction working
+- 🚧 Name resolution (identifier references against the scope chain) — first real semantic check with user-visible errors
 
 ## License
 
