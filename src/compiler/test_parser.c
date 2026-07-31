@@ -788,6 +788,39 @@ int main(void) {
                          "class Aggregator:\n"
                          "    def total(self, items):\n"
                          "        return items |> reduce((acc, x) => acc + x)\n");
+                         // ===== Compound type annotations =====
+       printf("\n\n========== COMPOUND TYPE ANNOTATION TESTS ==========\n");
+
+       // Simple types still work (regression)
+       test_module_case("Simple type annotation regression",
+           "def add(x: int, y: int) -> int:\n"
+           "    return x + y\n");
+
+       // Single-parameter generic
+       test_module_case("Generic parameter type",
+           "def process(items: List[int]):\n"
+           "    return items\n");
+
+       // Multi-parameter generic (first arg preserved, others discarded)
+       test_module_case("Multi-arg generic parameter type",
+           "def lookup(m: Dict[str, int]):\n"
+           "    return m\n");
+
+       // Nested generic
+       test_module_case("Nested generic parameter type",
+           "def process(nested: List[Dict[str, int]]):\n"
+           "    return nested\n");
+
+       // Generic return type
+       test_module_case("Generic return type",
+           "def get_ints() -> List[int]:\n"
+           "    return items\n");
+
+       // SESSION PROOF POINT - method with multiple generic types
+       test_module_case("Class method with compound types (proof point)",
+           "class Registry:\n"
+           "    def register(self, name: str, items: List[int]) -> Dict[str, int]:\n"
+           "        return self.store\n");
 
     return 0;
 }

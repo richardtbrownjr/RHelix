@@ -724,6 +724,78 @@ static ASTNode* with_statement(Parser* parser) {
 }
 
 // Helper: parse a single parameter "IDENT ( : IDENT )?"
+// parse_type_annotation - Parses a type annotation: identifier followed by
+// optional generic type parameters in brackets.
+//
+//   Simple:    int, str, MyClass
+//   Compound:  List[int], Dict[str, int]
+//   Nested:    List[Dict[str, int]], Tuple[int, List[str]]
+//
+// Returns an AST node representing the type. For simple types this is an
+// Identifier. For compound types this is a Subscript wrapping the base
+// identifier, with the type arguments as the index. Multi-argument generics
+// like Dict[str, int] currently produce Subscript with only the FIRST arg
+// as the index - deferred cleanup: represent multi-arg generics properly
+// once we know if/how a real type-arg-list AST node is worth adding.
+//
+// Returns NULL on error and sets parser->had_error.
+static ASTNode* parse_type_annotation(Parser* parser) {
+    if (!check(parser, TOKEN_IDENTIFIER)) {
+        parser_error(parser, "Expected type name");
+        return NULL;
+    }
+    Token* base_tok = advance(parser);
+    ASTNode* type = ast_identifier(base_tok->lexeme,
+                                   base_tok->line, base_tok->column);
+    if (!type) return NULL;
+
+    // Optional generic parameters: [type (, type)*]
+    while (match(parser, TOKEN_LBRACKET)) {
+        Token* bracket_tok = previous(parser);
+
+        // Parse the first type argument (recursive - types can be nested).
+        ASTNode* first_arg = parse_type_annotation(parser);
+        if (!first_arg) {
+            ast_destroy(type);
+            return NULL;
+        }
+
+        // Additional type arguments after commas. For now we discard all
+        // but the first - see note above about deferred multi-arg support.
+        while (match(parser, TOKEN_COMMA)) {
+            ASTNode* extra = parse_type_annotation(parser);
+            if (!extra) {
+                ast_destroy(type);
+                ast_destroy(first_arg);
+                return NULL;
+            }
+            ast_destroy(extra);  // Discard for v1
+        }
+
+        if (!consume(parser, TOKEN_RBRACKET,
+                     "Expected ']' after generic type arguments")) {
+            ast_destroy(type);
+            ast_destroy(first_arg);
+            return NULL;
+        }
+
+        // Wrap the accumulated type in a Subscript with the first arg.
+        // This allows chaining: List[int][str] would parse as
+        // Subscript(Subscript(List, int), str) - unusual but structurally
+        // valid, and the walker doesn't need special casing.
+        ASTNode* subscript = ast_subscript(type, first_arg,
+                                           bracket_tok->line,
+                                           bracket_tok->column);
+        if (!subscript) {
+            ast_destroy(type);
+            ast_destroy(first_arg);
+            return NULL;
+        }
+        type = subscript;
+    }
+
+    return type;
+}
 static bool parse_param(Parser* parser, char** out_name, ASTNode** out_type) {
     *out_name = NULL;
     *out_type = NULL;
@@ -735,15 +807,12 @@ static bool parse_param(Parser* parser, char** out_name, ASTNode** out_type) {
     *out_name = strdup(name_tok->lexeme);
 
     if (match(parser, TOKEN_COLON)) {
-        if (!check(parser, TOKEN_IDENTIFIER)) {
-            parser_error(parser, "Expected type after ':'");
+        *out_type = parse_type_annotation(parser);
+        if (!*out_type) {
             free(*out_name);
             *out_name = NULL;
             return false;
         }
-        Token* type_tok = advance(parser);
-        *out_type = ast_identifier(type_tok->lexeme,
-                                   type_tok->line, type_tok->column);
     }
     return true;
 }
@@ -794,14 +863,12 @@ static ASTNode* function_def_statement(Parser* parser) {
     }
 
     if (match(parser, TOKEN_ARROW)) {
-        if (!check(parser, TOKEN_IDENTIFIER)) {
-            parser_error(parser, "Expected return type after '->'");
+        ASTNode* rt = parse_type_annotation(parser);
+        if (!rt) {
             ast_destroy(func);
             return NULL;
         }
-        Token* ret_tok = advance(parser);
-        func->as.function_def.return_type =
-            ast_identifier(ret_tok->lexeme, ret_tok->line, ret_tok->column);
+        func->as.function_def.return_type = rt;
     }
 
     if (!consume(parser, TOKEN_COLON, "Expected ':' after function signature")) {
