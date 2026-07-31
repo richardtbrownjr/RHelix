@@ -12,6 +12,7 @@
 #include "semantic.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 // === Lifecycle ===
 
@@ -43,6 +44,7 @@ void scope_push(SemanticAnalyzer* sem, ScopeKind kind) {
     scope->kind = kind;
     scope->parent = sem->current_scope;
     scope->depth = sem->current_scope ? sem->current_scope->depth + 1 : 0;
+    scope->symbol_table = NULL;  // Empty table on scope creation
     sem->current_scope = scope;
     if (scope->depth > sem->max_depth_reached) {
         sem->max_depth_reached = scope->depth;
@@ -52,6 +54,14 @@ void scope_push(SemanticAnalyzer* sem, ScopeKind kind) {
 void scope_pop(SemanticAnalyzer* sem) {
     if (!sem || !sem->current_scope) return;
     Scope* old = sem->current_scope;
+    // Free the symbol table before freeing the scope itself.
+    Symbol* sym = old->symbol_table;
+    while (sym) {
+        Symbol* next = sym->next;
+        free(sym->name);
+        free(sym);
+        sym = next;
+    }
     sem->current_scope = old->parent;
     free(old);
 }
@@ -67,6 +77,60 @@ const char* scope_kind_to_string(ScopeKind kind) {
         case SCOPE_CLASS: return "CLASS";
         case SCOPE_BLOCK: return "BLOCK";
         case SCOPE_LAMBDA: return "LAMBDA";
+        default: return "UNKNOWN";
+    }
+}
+
+// === Symbol operations ===
+
+Symbol* symbol_define(SemanticAnalyzer* sem, const char* name, SymbolKind kind,
+                      int line, int column) {
+    if (!sem || !sem->current_scope || !name) return NULL;
+
+    Symbol* sym = (Symbol*)malloc(sizeof(Symbol));
+    if (!sym) return NULL;
+
+    sym->name = strdup(name);
+    sym->kind = kind;
+    sym->defined_line = line;
+    sym->defined_column = column;
+
+    // Prepend to the current scope's symbol table. Prepending is O(1) and
+    // gives us the "newer symbols shadow older ones" behavior for free
+    // because lookup walks from head to tail.
+    sym->next = sem->current_scope->symbol_table;
+    sem->current_scope->symbol_table = sym;
+
+    return sym;
+}
+
+Symbol* symbol_lookup_local(SemanticAnalyzer* sem, const char* name) {
+    if (!sem || !sem->current_scope || !name) return NULL;
+    for (Symbol* s = sem->current_scope->symbol_table; s; s = s->next) {
+        if (strcmp(s->name, name) == 0) return s;
+    }
+    return NULL;
+}
+
+Symbol* symbol_lookup(SemanticAnalyzer* sem, const char* name) {
+    if (!sem || !name) return NULL;
+    // Walk from the current scope outward through parent scopes until
+    // we find the name or exhaust the chain.
+    for (Scope* scope = sem->current_scope; scope; scope = scope->parent) {
+        for (Symbol* s = scope->symbol_table; s; s = s->next) {
+            if (strcmp(s->name, name) == 0) return s;
+        }
+    }
+    return NULL;
+}
+
+const char* symbol_kind_to_string(SymbolKind kind) {
+    switch (kind) {
+        case SYM_VARIABLE: return "VARIABLE";
+        case SYM_PARAMETER: return "PARAMETER";
+        case SYM_FUNCTION: return "FUNCTION";
+        case SYM_CLASS: return "CLASS";
+        case SYM_METHOD: return "METHOD";
         default: return "UNKNOWN";
     }
 }
@@ -134,6 +198,16 @@ static void analyze_node(SemanticAnalyzer* sem, ASTNode* node) {
             analyze_node(sem, node->as.expression_stmt.expression);
             break;
         case AST_ASSIGNMENT:
+          // If the assignment target is a plain identifier, this is a
+          // variable definition. Attribute and subscript targets don't
+          // define new names - they mutate existing objects.
+          if (node->as.assignment.target &&
+              node->as.assignment.target->type == AST_IDENTIFIER) {
+              symbol_define(sem,
+                            node->as.assignment.target->as.identifier.name,
+                            SYM_VARIABLE,
+                            node->line, node->column);
+          }
             analyze_node(sem, node->as.assignment.target);
             analyze_node(sem, node->as.assignment.value);
             break;
@@ -172,6 +246,11 @@ static void analyze_node(SemanticAnalyzer* sem, ASTNode* node) {
         case AST_FOR:
             analyze_node(sem, node->as.for_stmt.iterable);
             scope_push(sem, SCOPE_BLOCK);
+            // Loop variable is defined in the loop's block scope.
+            if (node->as.for_stmt.var_name) {
+                symbol_define(sem, node->as.for_stmt.var_name,
+                              SYM_VARIABLE, node->line, node->column);
+            }
             analyze_block_body(sem, node->as.for_stmt.body);
             scope_pop(sem);
             break;
@@ -179,30 +258,55 @@ static void analyze_node(SemanticAnalyzer* sem, ASTNode* node) {
         case AST_WITH:
             analyze_node(sem, node->as.with_stmt.context);
             scope_push(sem, SCOPE_BLOCK);
+            // 'as' binding (if present) is defined in the with-block scope.
+            if (node->as.with_stmt.var_name) {
+                symbol_define(sem, node->as.with_stmt.var_name,
+                              SYM_VARIABLE, node->line, node->column);
+            }
             analyze_block_body(sem, node->as.with_stmt.body);
             scope_pop(sem);
             break;
 
         case AST_FUNCTION_DEF:
-            // Decorators are evaluated in the enclosing scope, not inside
-            // the function body.
-            for (int i = 0; i < node->as.function_def.decorator_count; i++) {
+          for (int i = 0; i < node->as.function_def.decorator_count; i++) {
                 analyze_node(sem, node->as.function_def.decorators[i]);
             }
+            // Define the function/method in the ENCLOSING scope. Whether
+            // this is SYM_FUNCTION or SYM_METHOD depends on whether we're
+            // currently inside a class body.
+            if (node->as.function_def.name) {
+                SymbolKind fk = (sem->current_scope &&
+                                 sem->current_scope->kind == SCOPE_CLASS)
+                                ? SYM_METHOD : SYM_FUNCTION;
+                symbol_define(sem, node->as.function_def.name,
+                              fk, node->line, node->column);
+            }
             scope_push(sem, SCOPE_FUNCTION);
-            analyze_block_body(sem, node->as.function_def.body);
-            scope_pop(sem);
-            break;
+            // Parameters live in the function's own scope.
+            for (int i = 0; i < node->as.function_def.param_count; i++) {
+                symbol_define(sem, node->as.function_def.params[i].name,
+                              SYM_PARAMETER, node->line, node->column);
+            }
 
-        case AST_LAMBDA:
-            scope_push(sem, SCOPE_LAMBDA);
-            analyze_node(sem, node->as.lambda.body);
-            scope_pop(sem);
-            break;
+      case AST_LAMBDA:
+        scope_push(sem, SCOPE_LAMBDA);
+        // Lambda parameters live in the lambda's own scope.
+        for (int i = 0; i < node->as.lambda.param_count; i++) {
+            symbol_define(sem, node->as.lambda.param_names[i],
+                          SYM_PARAMETER, node->line, node->column);
+        }
+        analyze_node(sem, node->as.lambda.body);
+        scope_pop(sem);
+        break;
 
         case AST_CLASS_DEF:
             for (int i = 0; i < node->as.class_def.decorator_count; i++) {
                 analyze_node(sem, node->as.class_def.decorators[i]);
+            }
+            // Define the class in the enclosing scope.
+            if (node->as.class_def.name) {
+                symbol_define(sem, node->as.class_def.name,
+                              SYM_CLASS, node->line, node->column);
             }
             scope_push(sem, SCOPE_CLASS);
             analyze_block_body(sem, node->as.class_def.body);
