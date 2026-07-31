@@ -53,6 +53,7 @@ static void run_semantic_case(const char* label, const char* source) {
 
     // Analyze
     SemanticAnalyzer* sem = semantic_create();
+    sem->debug_print_scopes = true;
     bool ok = semantic_analyze(sem, module);
 
     printf("  Analysis: %s\n", ok ? "OK" : "FAILED");

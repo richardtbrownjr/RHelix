@@ -62,6 +62,7 @@ typedef struct {
     // Track deepest scope depth reached during analysis - useful for
     // debugging and validates that push/pop are balanced.
     int max_depth_reached;
+    bool debug_print_scopes;  // If true, scope_pop prints symbol table before freeing
 } SemanticAnalyzer;
 
 // === Lifecycle ===

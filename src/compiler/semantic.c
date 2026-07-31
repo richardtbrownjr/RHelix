@@ -22,6 +22,7 @@ SemanticAnalyzer* semantic_create(void) {
     sem->current_scope = NULL;
     sem->had_error = false;
     sem->max_depth_reached = 0;
+    sem->debug_print_scopes = false;
     return sem;
 }
 
@@ -54,6 +55,18 @@ void scope_push(SemanticAnalyzer* sem, ScopeKind kind) {
 void scope_pop(SemanticAnalyzer* sem) {
     if (!sem || !sem->current_scope) return;
     Scope* old = sem->current_scope;
+    // Debug output: print the scope's contents before we free it.
+    if (sem->debug_print_scopes) {
+        printf("  Scope [%s @ depth %d] symbols:\n",
+               scope_kind_to_string(old->kind), old->depth);
+        if (!old->symbol_table) {
+            printf("    (empty)\n");
+        }
+        for (Symbol* s = old->symbol_table; s; s = s->next) {
+            printf("    %-10s %s (line %d)\n",
+                   symbol_kind_to_string(s->kind), s->name, s->defined_line);
+        }
+    }
     // Free the symbol table before freeing the scope itself.
     Symbol* sym = old->symbol_table;
     while (sym) {
@@ -287,7 +300,10 @@ static void analyze_node(SemanticAnalyzer* sem, ASTNode* node) {
                 symbol_define(sem, node->as.function_def.params[i].name,
                               SYM_PARAMETER, node->line, node->column);
             }
-
+            analyze_block_body(sem, node->as.function_def.body);
+            scope_pop(sem);
+            break;
+            
       case AST_LAMBDA:
         scope_push(sem, SCOPE_LAMBDA);
         // Lambda parameters live in the lambda's own scope.
