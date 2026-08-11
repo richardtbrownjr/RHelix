@@ -72,6 +72,11 @@ const char* token_type_to_string(TokenType type) {
         case TOKEN_SLASH: return "SLASH";
         case TOKEN_PERCENT: return "PERCENT";
         case TOKEN_EQUALS: return "EQUALS";
+        case TOKEN_PLUS_EQUALS: return "PLUS_EQUALS";
+        case TOKEN_MINUS_EQUALS: return "MINUS_EQUALS";
+        case TOKEN_STAR_EQUALS: return "STAR_EQUALS";
+        case TOKEN_SLASH_EQUALS: return "SLASH_EQUALS";
+        case TOKEN_PERCENT_EQUALS: return "PERCENT_EQUALS";
         case TOKEN_EQUALS_EQUALS: return "EQUALS_EQUALS";
         case TOKEN_NOT_EQUALS: return "NOT_EQUALS";
         case TOKEN_LESS: return "LESS";

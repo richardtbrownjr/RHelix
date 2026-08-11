@@ -516,7 +516,40 @@ static ASTNode* expression_statement(Parser* parser) {
     Token* token = peek(parser);
     ASTNode* expr = expression(parser);
     if (!expr) return NULL;
+    // Augmented assignment: target OP= value, where OP is +, -, *, /, %
+        // Desugared into AST_AUGMENTED_ASSIGNMENT with op set to the arithmetic
+        // token. Target must be an assignable form (Identifier / Attribute /
+        // Subscript), same as regular assignment.
+        TokenType aug_op = TOKEN_EOF;  // Sentinel meaning "not augmented"
+        if (match(parser, TOKEN_PLUS_EQUALS)) {
+            aug_op = TOKEN_PLUS;
+        } else if (match(parser, TOKEN_MINUS_EQUALS)) {
+            aug_op = TOKEN_MINUS;
+        } else if (match(parser, TOKEN_STAR_EQUALS)) {
+            aug_op = TOKEN_STAR;
+        } else if (match(parser, TOKEN_SLASH_EQUALS)) {
+            aug_op = TOKEN_SLASH;
+        } else if (match(parser, TOKEN_PERCENT_EQUALS)) {
+            aug_op = TOKEN_PERCENT;
+        }
 
+        if (aug_op != TOKEN_EOF) {
+            if (expr->type != AST_IDENTIFIER &&
+                expr->type != AST_ATTRIBUTE &&
+                expr->type != AST_SUBSCRIPT) {
+                parser_error(parser, "Invalid augmented assignment target");
+                ast_destroy(expr);
+                return NULL;
+            }
+            ASTNode* value = expression(parser);
+            if (!value) {
+                ast_destroy(expr);
+                return NULL;
+            }
+            match(parser, TOKEN_NEWLINE);
+            return ast_augmented_assignment(expr, value, aug_op,
+                                            token->line, token->column);
+        }
     if (match(parser, TOKEN_EQUALS)) {
         if (expr->type != AST_IDENTIFIER &&
             expr->type != AST_ATTRIBUTE &&

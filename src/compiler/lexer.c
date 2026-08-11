@@ -308,15 +308,34 @@ Token* lexer_next_token(Lexer* lexer) {
         case ':': return make_token(lexer, TOKEN_COLON, start);
         case ';': return make_token(lexer, TOKEN_SEMICOLON, start);
         case '@': return make_token(lexer, TOKEN_AT, start);
-        case '+': return make_token(lexer, TOKEN_PLUS, start);
-        case '*': return make_token(lexer, TOKEN_STAR, start);
-        case '/': return make_token(lexer, TOKEN_SLASH, start);
-        case '%': return make_token(lexer, TOKEN_PERCENT, start);
+        case '+':
+          if (match(lexer, '=')) {
+              return make_token(lexer, TOKEN_PLUS_EQUALS, start);
+          }
+          return make_token(lexer, TOKEN_PLUS, start);
+        case '*':
+          if (match(lexer, '=')) {
+              return make_token(lexer, TOKEN_STAR_EQUALS, start);
+          }
+          return make_token(lexer, TOKEN_STAR, start);
+        case '/':
+          if (match(lexer, '=')) {
+              return make_token(lexer, TOKEN_SLASH_EQUALS, start);
+          }
+          return make_token(lexer, TOKEN_SLASH, start);
+        case '%':
+          if (match(lexer, '=')) {
+              return make_token(lexer, TOKEN_PERCENT_EQUALS, start);
+          }
+          return make_token(lexer, TOKEN_PERCENT, start);
 
         // Multi-character tokens
         case '-':
             if (match(lexer, '>')) {
                 return make_token(lexer, TOKEN_ARROW, start);
+            }
+            if (match(lexer, '=')) {
+                return make_token(lexer, TOKEN_MINUS_EQUALS, start);
             }
             return make_token(lexer, TOKEN_MINUS, start);
 

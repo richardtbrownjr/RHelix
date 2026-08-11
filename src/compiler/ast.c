@@ -132,6 +132,16 @@ ASTNode* ast_assignment(ASTNode* target, ASTNode* value, int line, int column) {
     return node;
 }
 
+ASTNode* ast_augmented_assignment(ASTNode* target, ASTNode* value, TokenType op,
+                                  int line, int column) {
+    ASTNode* node = make_node(AST_AUGMENTED_ASSIGNMENT, line, column);
+    if (!node) return NULL;
+    node->as.augmented_assignment.target = target;
+    node->as.augmented_assignment.value = value;
+    node->as.augmented_assignment.op = op;
+    return node;
+}
+
 ASTNode* ast_return(ASTNode* value, int line, int column) {
     ASTNode* node = make_node(AST_RETURN, line, column);
     if (!node) return NULL;
@@ -380,6 +390,10 @@ void ast_destroy(ASTNode* node) {
             ast_destroy(node->as.attribute.object);
             free(node->as.attribute.name);
             break;
+        case AST_AUGMENTED_ASSIGNMENT:
+            ast_destroy(node->as.augmented_assignment.target);
+            ast_destroy(node->as.augmented_assignment.value);
+            break;
         case AST_EXPRESSION_STMT:
             ast_destroy(node->as.expression_stmt.expression);
             break;
@@ -481,6 +495,7 @@ const char* ast_node_type_to_string(ASTNodeType type) {
         case AST_ATTRIBUTE: return "Attribute";
         case AST_EXPRESSION_STMT: return "ExpressionStmt";
         case AST_ASSIGNMENT: return "Assignment";
+        case AST_AUGMENTED_ASSIGNMENT: return "AugmentedAssignment";
         case AST_RETURN: return "Return";
         case AST_PASS: return "Pass";
         case AST_LAMBDA: return "Lambda";
@@ -580,6 +595,12 @@ void ast_print(ASTNode* node, int indent) {
             printf("Assignment\n");
             ast_print(node->as.assignment.target, indent + 1);
             ast_print(node->as.assignment.value, indent + 1);
+            break;
+        case AST_AUGMENTED_ASSIGNMENT:
+            printf("AugmentedAssignment(%s)\n",
+                   token_type_to_string(node->as.augmented_assignment.op));
+            ast_print(node->as.augmented_assignment.target, indent + 1);
+            ast_print(node->as.augmented_assignment.value, indent + 1);
             break;
         case AST_RETURN:
             if (node->as.ret.value) {

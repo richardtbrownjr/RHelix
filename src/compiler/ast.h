@@ -23,6 +23,7 @@ typedef enum {
     // Simple statements
     AST_EXPRESSION_STMT,
     AST_ASSIGNMENT,
+    AST_AUGMENTED_ASSIGNMENT,
     AST_RETURN,
     AST_PASS,
     AST_BREAK,
@@ -91,6 +92,12 @@ typedef struct {
     ASTNode* target;
     ASTNode* value;
 } ASTAssignment;
+
+typedef struct {
+    ASTNode* target;   // Where to store (Identifier / Attribute / Subscript)
+    ASTNode* value;    // Right-hand side of the operator
+    TokenType op;      // TOKEN_PLUS, TOKEN_MINUS, TOKEN_STAR, TOKEN_SLASH, TOKEN_PERCENT
+} ASTAugmentedAssignment;
 
 typedef struct {
     ASTNode* value;
@@ -194,6 +201,7 @@ struct ASTNode {
         ASTAttribute attribute;
         ASTExpressionStmt expression_stmt;
         ASTAssignment assignment;
+        ASTAugmentedAssignment augmented_assignment;
         ASTReturn ret;
         ASTBlock block;
         ASTIf if_stmt;
@@ -228,6 +236,8 @@ ASTNode* ast_attribute(ASTNode* object, const char* name, int line, int column);
 
 ASTNode* ast_expression_stmt(ASTNode* expression, int line, int column);
 ASTNode* ast_assignment(ASTNode* target, ASTNode* value, int line, int column);
+ASTNode* ast_augmented_assignment(ASTNode* target, ASTNode* value, TokenType op,
+                                  int line, int column);
 ASTNode* ast_return(ASTNode* value, int line, int column);
 ASTNode* ast_pass(int line, int column);
 ASTNode* ast_break(int line, int column);

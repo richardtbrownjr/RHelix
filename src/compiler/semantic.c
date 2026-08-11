@@ -256,6 +256,13 @@ static void analyze_node(SemanticAnalyzer* sem, ASTNode* node) {
             analyze_node(sem, node->as.assignment.target);
             analyze_node(sem, node->as.assignment.value);
             break;
+        case AST_AUGMENTED_ASSIGNMENT:
+          // Augmented assignment does NOT define - target must already
+          // exist. Walking the target will trigger name resolution and
+          // report an error if the name is undefined.
+          analyze_node(sem, node->as.augmented_assignment.target);
+          analyze_node(sem, node->as.augmented_assignment.value);
+          break;
         case AST_RETURN:
             if (node->as.ret.value) {
                 analyze_node(sem, node->as.ret.value);
