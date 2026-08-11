@@ -822,5 +822,46 @@ int main(void) {
            "    def register(self, name: str, items: List[int]) -> Dict[str, int]:\n"
            "        return self.store\n");
 
+           // ===== Augmented assignment =====
+       printf("\n\n========== AUGMENTED ASSIGNMENT TESTS ==========\n");
+
+       // Basic forms with identifier target
+       test_module_case("Plus-equals identifier",  "x += 1\n");
+       test_module_case("Minus-equals identifier", "x -= 1\n");
+       test_module_case("Star-equals identifier",  "x *= 2\n");
+       test_module_case("Slash-equals identifier", "x /= 2\n");
+       test_module_case("Percent-equals identifier", "x %= 3\n");
+
+       // Attribute target - the common state-mutation case
+       test_module_case("Attribute augmented",
+           "self.count += 1\n");
+
+       // Subscript target
+       test_module_case("Subscript augmented",
+           "arr[i] *= 2\n");
+
+       // Regression: regular assignment still works
+       test_module_case("Regular assignment regression",
+           "x = 5\n");
+
+       // Error case: invalid target
+       test_module_case("Error: literal augmented target",
+           "5 += 1\n");
+
+           // SESSION PROOF POINT - accumulator loop, real code shape
+         test_module_case("Accumulator loop (proof point)",
+             "def sum(items):\n"
+             "    total = 0\n"
+             "    for x in items:\n"
+             "        total += x\n"
+             "    return total\n");
+
+         // Method with state mutation using augmented forms
+         test_module_case("Counter increment via augmented (proof point)",
+             "class Counter:\n"
+             "    def increment(self):\n"
+             "        self.value += 1\n"
+             "        return self.value\n");
+
     return 0;
 }
