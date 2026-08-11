@@ -27,7 +27,7 @@ production-ready and is not intended to be.
 The compiler frontend is substantially complete. RHelix source code with
 function declarations, type annotations, control flow, data access, classes
 with inheritance, decorators, loop control, and boolean logic parses into a
-well-formed AST. Semantic analysis and code generation are not yet implemented.
+well-formed AST. The frontend is feature-complete relative to the original scope. Semantic analysis is under construction — scope tracking, symbol tables, and name resolution are working. Code generation is not yet implemented.
 
 The repo can parse this without complaint:
 
@@ -87,6 +87,7 @@ def withdraw(account, amount):
 - [x] Loop control: `break` and `continue`
 - [x] `elif` chains (parsed as nested if/else, no new AST node)
 - [x] Assignment to attributes and subscripts (`self.x = v`, `arr[i] = v`)
+- [x] Augmented assignment (`+=`, `-=`, `*=`, `/=`, `%=`) with Identifier, Attribute, and Subscript targets
 - [x] `with` blocks with optional `as` binding (`with arena(1024) as buf:`)
 - [x] Pipeline operator (`|>`) with left-associative chaining (`data |> clean |> transform`)
 - [x] Lambda expressions — unparenthesized single-param (`x => body`) and parenthesized multi-param (`(x, y) => body`)
@@ -116,6 +117,7 @@ def withdraw(account, amount):
 - [x] Exhaustive AST node dispatch — new node types produce compile-time warnings if unhandled
 - [x] Symbol tables per scope (linked-list buckets, prepend for shadowing, O(1) insert)
 - [x] Symbol kinds — SYM_VARIABLE, SYM_PARAMETER, SYM_FUNCTION, SYM_METHOD, SYM_CLASS — populated during AST walk at 6 sites; methods distinguished from functions by class-scope check
+- [x] Name resolution — identifier references looked up in the scope chain; undefined names reported as errors with source location; `error_count` tracked on `SemanticAnalyzer`
 
 ## In Progress
 
@@ -123,7 +125,6 @@ def withdraw(account, amount):
 
 
 ### Semantic Analysis
-- [ ] Name resolution (identifier references against the scope chain)
 - [ ] break/continue validation (only inside loops)
 - [ ] return validation (only inside functions/lambdas)
 - [ ] Type checking against annotations
@@ -241,7 +242,9 @@ utilities.
 - ✅ Semantic analyzer foundation — new compiler phase with scope tracking; five scope kinds, exhaustive AST walker, balanced push/pop verified
 - ✅ Compound type annotations (`List[int]`, `Dict[str, int]`, nested forms) — completes original frontend scope
 - ✅ Symbol tables per scope with population during AST walk — five symbol kinds, method-vs-function distinction working
-- 🚧 Name resolution (identifier references against the scope chain) — first real semantic check with user-visible errors
+- ✅ Name resolution — first user-visible semantic check; undefined names reported with source location
+- ✅ Augmented assignment (`+=`, `-=`, `*=`, `/=`, `%=`) — realistic accumulator and state-mutation patterns now parse
+- 🚧 break/continue and return validation (only inside loops / functions) — next semantic bites, small and bounded
 
 ## License
 
