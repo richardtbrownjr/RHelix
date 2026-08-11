@@ -58,6 +58,7 @@ static void run_semantic_case(const char* label, const char* source) {
 
     printf("  Analysis: %s\n", ok ? "OK" : "FAILED");
     printf("  Max scope depth reached: %d\n", sem->max_depth_reached);
+    printf("  Errors: %d\n", sem->error_count);
     printf("  Scope stack empty at end: %s\n",
            sem->current_scope == NULL ? "yes" : "NO (imbalance!)");
 
@@ -118,6 +119,50 @@ int main(void) {
         "\n"
         "result = apply(x => x + 1, 10)\n");
 
-    printf("\n========== ALL TESTS COMPLETE ==========\n");
+    printf("\n\n========== NAME RESOLUTION TESTS ==========\n");
+
+    // ---- Cases that SHOULD PASS (all names defined) ----
+
+    // Simple: LHS defines, RHS uses the defined name in a later statement
+    run_semantic_case("Defined name used later (should pass)",
+        "x = 5\n"
+        "y = x + 1\n");
+
+    // Parameter used inside function body
+    run_semantic_case("Parameter used in body (should pass)",
+        "def double(n):\n"
+        "    return n + n\n");
+
+    // Loop variable used inside body
+    run_semantic_case("Loop variable used in body (should pass)",
+        "for item in items:\n"
+        "    x = item\n");
+    // Note: 'items' is undefined - this test expects 1 error, not 0.
+
+    // Class method accessing its own parameter
+    run_semantic_case("Method uses self parameter (should pass)",
+        "class Counter:\n"
+        "    def increment(self):\n"
+        "        return self\n");
+
+    // ---- Cases that SHOULD FAIL (undefined names) ----
+
+    // Bare identifier with nothing defined
+    run_semantic_case("Undefined name at module level (should error)",
+        "y = x + 1\n");
+
+    // Function references undefined name
+    run_semantic_case("Undefined name in function body (should error)",
+        "def foo():\n"
+        "    return bar\n");
+
+    // Nested scope: inner reference to outer name is OK; inner name from
+    // outer scope is not
+    run_semantic_case("Function param not visible outside (should error)",
+        "def foo(x):\n"
+        "    return x\n"
+        "result = x\n");
+
+    printf("\n========== END NAME RESOLUTION TESTS ==========\n");
     return 0;
 }
