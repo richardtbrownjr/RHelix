@@ -13,6 +13,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdarg.h>
 
 // === Lifecycle ===
 
@@ -21,6 +22,7 @@ SemanticAnalyzer* semantic_create(void) {
     if (!sem) return NULL;
     sem->current_scope = NULL;
     sem->had_error = false;
+    sem->error_count = 0;
     sem->max_depth_reached = 0;
     sem->debug_print_scopes = false;
     return sem;
@@ -146,7 +148,26 @@ const char* symbol_kind_to_string(SymbolKind kind) {
         case SYM_METHOD: return "METHOD";
         default: return "UNKNOWN";
     }
+    }
+
+    // === Error reporting ===
+
+void semantic_error(SemanticAnalyzer* sem, int line, int column,
+                    const char* format, ...) {
+    if (!sem) return;
+    sem->had_error = true;
+    sem->error_count++;
+
+    fprintf(stderr, "[semantic] line %d, col %d: ", line, column);
+
+    va_list args;
+    va_start(args, format);
+    vfprintf(stderr, format, args);
+    va_end(args);
+
+    fprintf(stderr, "\n");
 }
+
 
 // === AST walker ===
 //
@@ -175,11 +196,22 @@ static void analyze_node(SemanticAnalyzer* sem, ASTNode* node) {
         case AST_LITERAL_STRING:
         case AST_LITERAL_BOOL:
         case AST_LITERAL_NONE:
-        case AST_IDENTIFIER:
         case AST_PASS:
         case AST_BREAK:
         case AST_CONTINUE:
             break;
+
+      case AST_IDENTIFIER: {
+          // Identifier appearing in expression position - look up in the
+          // scope chain. Assignment targets are pre-defined by AST_ASSIGNMENT
+          // before recursion reaches here, so lookup will succeed for them.
+          const char* name = node->as.identifier.name;
+          if (name && !symbol_lookup(sem, name)) {
+              semantic_error(sem, node->line, node->column,
+                             "undefined name '%s'", name);
+          }
+          break;
+      }
 
         // Simple recursive expressions - walk children, no scope change.
         case AST_BINARY:
@@ -303,7 +335,7 @@ static void analyze_node(SemanticAnalyzer* sem, ASTNode* node) {
             analyze_block_body(sem, node->as.function_def.body);
             scope_pop(sem);
             break;
-            
+
       case AST_LAMBDA:
         scope_push(sem, SCOPE_LAMBDA);
         // Lambda parameters live in the lambda's own scope.

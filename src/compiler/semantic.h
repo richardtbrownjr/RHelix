@@ -59,6 +59,7 @@ typedef struct Scope {
 typedef struct {
     Scope* current_scope;
     bool had_error;
+    int error_count;   // Number of semantic errors reported during analysis
     // Track deepest scope depth reached during analysis - useful for
     // debugging and validates that push/pop are balanced.
     int max_depth_reached;
@@ -107,5 +108,15 @@ Symbol* symbol_lookup_local(SemanticAnalyzer* sem, const char* name);
 // Convert SymbolKind to a debug string. Used for test output and error
 // messages.
 const char* symbol_kind_to_string(SymbolKind kind);
+
+// === Error reporting ===
+
+// Report a semantic error. Prints to stderr with source location, sets
+// had_error, and increments error_count. Right now errors are one-shot -
+// there is no list to collect them into. Tests can assert on error_count
+// but not on specific error messages. Improving this to a list of
+// structured errors is a future polish.
+void semantic_error(SemanticAnalyzer* sem, int line, int column,
+                    const char* format, ...);
 
 #endif
