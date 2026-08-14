@@ -164,5 +164,49 @@ int main(void) {
         "result = x\n");
 
     printf("\n========== END NAME RESOLUTION TESTS ==========\n");
+
+    printf("\n\n========== BREAK/CONTINUE VALIDATION TESTS ==========\n");
+
+    // ---- Cases that SHOULD PASS ----
+
+    run_semantic_case("break inside while (should pass)",
+        "while True:\n"
+        "    break\n");
+
+    run_semantic_case("continue inside while (should pass)",
+        "while True:\n"
+        "    continue\n");
+
+    run_semantic_case("break inside for (should pass)",
+        "for item in items:\n"
+        "    break\n");
+    // Note: 'items' is undefined - expect 1 name resolution error, 0 loop errors.
+
+    run_semantic_case("break inside nested for-if (should pass)",
+        "for item in items:\n"
+        "    if item:\n"
+        "        break\n");
+
+    // ---- Cases that SHOULD ERROR ----
+
+    run_semantic_case("break at module level (should error)",
+        "break\n");
+
+    run_semantic_case("continue at module level (should error)",
+        "continue\n");
+
+    run_semantic_case("break inside function outside loop (should error)",
+        "def foo():\n"
+        "    break\n");
+
+    // Function boundary blocks - break inside inner function does NOT
+    // see the outer while loop. This is the classic Python semantics.
+    run_semantic_case("break in nested function (should error - function boundary)",
+        "while True:\n"
+        "    def foo():\n"
+        "        break\n");
+
+    printf("\n========== END BREAK/CONTINUE VALIDATION TESTS ==========\n");
+    
     return 0;
 }
