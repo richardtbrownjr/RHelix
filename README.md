@@ -106,6 +106,7 @@ def withdraw(account, amount):
 - [x] Function call expressions (postfix `()` with comma-separated args)
 - [x] Chained calls (`foo()()`)
 - [x] Subscripts (`arr[i]`) — chains naturally to `arr[i][j]`
+- [x] Collection literals — lists (`[1, 2, 3]`), dicts (`{"a": 1, "b": 2}`), nested and mixed types, trailing commas allowed
 - [x] Attribute access (`obj.field`) — chains naturally to `obj.a.b.c`
 - [x] Method calls (`obj.method(args)`) via Attribute + Call composition
 - [x] Free composition of all postfix forms: `obj.method(arg).field[0]`
@@ -118,6 +119,7 @@ def withdraw(account, amount):
 - [x] Symbol tables per scope (linked-list buckets, prepend for shadowing, O(1) insert)
 - [x] Symbol kinds — SYM_VARIABLE, SYM_PARAMETER, SYM_FUNCTION, SYM_METHOD, SYM_CLASS — populated during AST walk at 6 sites; methods distinguished from functions by class-scope check
 - [x] Name resolution — identifier references looked up in the scope chain; undefined names reported as errors with source location; `error_count` tracked on `SemanticAnalyzer`
+- [x] break/continue validation — new SCOPE_LOOP_BODY kind pushed by while/for; is_inside_loop walks parent scopes, stops at function/lambda/class boundaries (Python semantics)
 
 ## In Progress
 
@@ -125,7 +127,6 @@ def withdraw(account, amount):
 
 
 ### Semantic Analysis
-- [ ] break/continue validation (only inside loops)
 - [ ] return validation (only inside functions/lambdas)
 - [ ] Type checking against annotations
 
@@ -244,7 +245,9 @@ utilities.
 - ✅ Symbol tables per scope with population during AST walk — five symbol kinds, method-vs-function distinction working
 - ✅ Name resolution — first user-visible semantic check; undefined names reported with source location
 - ✅ Augmented assignment (`+=`, `-=`, `*=`, `/=`, `%=`) — realistic accumulator and state-mutation patterns now parse
-- 🚧 break/continue and return validation (only inside loops / functions) — next semantic bites, small and bounded
+- ✅ break/continue validation — first "context check" semantic error; function boundaries respected so break doesn't escape into an outer loop across a def
+- ✅ Collection literals — lists, dicts, arbitrary nesting, real serialization patterns (`return {"count": self.count}`) parse cleanly
+- 🚧 return validation (only inside functions/lambdas) — smallest remaining semantic check; then bigger fish (type checking, code gen)
 
 ## License
 
