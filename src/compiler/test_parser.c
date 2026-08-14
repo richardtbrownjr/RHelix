@@ -862,6 +862,44 @@ int main(void) {
              "    def increment(self):\n"
              "        self.value += 1\n"
              "        return self.value\n");
+             printf("\n\n========== COLLECTION LITERAL TESTS ==========\n");
+
+       // ---- Lists ----
+       test_parser_case("Empty list", "[]");
+       test_parser_case("Single element list", "[1]");
+       test_parser_case("Multi-element list", "[1, 2, 3]");
+       test_parser_case("Mixed element types", "[1, \"two\", True]");
+       test_parser_case("Nested list", "[[1, 2], [3, 4]]");
+       test_parser_case("Trailing comma list", "[1, 2, 3,]");
+
+       // ---- Dicts ----
+       test_parser_case("Empty dict", "{}");
+       test_parser_case("Single entry dict", "{\"a\": 1}");
+       test_parser_case("Multi-entry dict", "{\"a\": 1, \"b\": 2}");
+       test_parser_case("Mixed key types", "{1: \"one\", \"two\": 2}");
+       test_parser_case("Nested dict", "{\"outer\": {\"inner\": 1}}");
+       test_parser_case("Trailing comma dict", "{\"a\": 1,}");
+
+       // ---- Compositions ----
+       test_parser_case("Dict of lists", "{\"nums\": [1, 2, 3]}");
+       test_parser_case("List of dicts", "[{\"x\": 1}, {\"x\": 2}]");
+
+       // ---- Assigning collection literals ----
+       test_module_case("Assign list to variable",
+           "items = [1, 2, 3]\n");
+       test_module_case("Assign dict to variable",
+           "config = {\"host\": \"localhost\", \"port\": 8080}\n");
+
+       // SESSION PROOF POINT - class method returning a dict
+       test_module_case("Method building a dict literal (proof point)",
+           "class Registry:\n"
+           "    def snapshot(self):\n"
+           "        return {\"count\": self.count, \"active\": self.active}\n");
+
+       // Real code shape - accumulator with lambda + list
+       test_module_case("Pipeline with list literal (proof point)",
+           "def process(source):\n"
+           "    return [1, 2, 3] |> transform |> filter(x => x > 0)\n");
 
     return 0;
 }
