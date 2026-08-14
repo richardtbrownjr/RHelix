@@ -432,7 +432,79 @@ static ASTNode* primary(Parser* parser) {
         }
         return ast_grouping(expr, token->line, token->column);
     }
+    if (match(parser, TOKEN_LBRACKET)) {
+            ASTNode* list = ast_list_literal(token->line, token->column);
+            if (!list) return NULL;
 
+            // Zero-or-more expressions separated by commas. Empty list is fine.
+            if (!check(parser, TOKEN_RBRACKET)) {
+                ASTNode* first = expression(parser);
+                if (!first) { ast_destroy(list); return NULL; }
+                ast_list_literal_add(list, first);
+
+                while (match(parser, TOKEN_COMMA)) {
+                    // Trailing comma before ']' is allowed - break out if we see it.
+                    if (check(parser, TOKEN_RBRACKET)) break;
+                    ASTNode* next = expression(parser);
+                    if (!next) { ast_destroy(list); return NULL; }
+                    ast_list_literal_add(list, next);
+                }
+            }
+
+            if (!consume(parser, TOKEN_RBRACKET, "Expected ']' after list literal")) {
+                ast_destroy(list);
+                return NULL;
+            }
+            return list;
+        }
+
+        if (match(parser, TOKEN_LBRACE)) {
+            ASTNode* dict = ast_dict_literal(token->line, token->column);
+            if (!dict) return NULL;
+
+            // Zero-or-more 'key: value' pairs separated by commas. Empty dict is fine.
+            if (!check(parser, TOKEN_RBRACE)) {
+                ASTNode* key = expression(parser);
+                if (!key) { ast_destroy(dict); return NULL; }
+                if (!consume(parser, TOKEN_COLON, "Expected ':' between dict key and value")) {
+                    ast_destroy(dict);
+                    ast_destroy(key);
+                    return NULL;
+                }
+                ASTNode* value = expression(parser);
+                if (!value) {
+                    ast_destroy(dict);
+                    ast_destroy(key);
+                    return NULL;
+                }
+                ast_dict_literal_add(dict, key, value);
+
+                while (match(parser, TOKEN_COMMA)) {
+                    // Trailing comma allowed.
+                    if (check(parser, TOKEN_RBRACE)) break;
+                    key = expression(parser);
+                    if (!key) { ast_destroy(dict); return NULL; }
+                    if (!consume(parser, TOKEN_COLON, "Expected ':' between dict key and value")) {
+                        ast_destroy(dict);
+                        ast_destroy(key);
+                        return NULL;
+                    }
+                    value = expression(parser);
+                    if (!value) {
+                        ast_destroy(dict);
+                        ast_destroy(key);
+                        return NULL;
+                    }
+                    ast_dict_literal_add(dict, key, value);
+                }
+            }
+
+            if (!consume(parser, TOKEN_RBRACE, "Expected '}' after dict literal")) {
+                ast_destroy(dict);
+                return NULL;
+            }
+            return dict;
+        }
     parser_error(parser, "Expected expression");
     return NULL;
 }

@@ -274,6 +274,20 @@ static void analyze_node(SemanticAnalyzer* sem, ASTNode* node) {
             analyze_node(sem, node->as.attribute.object);
             break;
 
+      case AST_LIST_LITERAL:
+          // Walk each element - they get name resolution etc.
+          for (int i = 0; i < node->as.list_literal.count; i++) {
+              analyze_node(sem, node->as.list_literal.elements[i]);
+          }
+          break;
+      case AST_DICT_LITERAL:
+          // Walk keys and values.
+          for (int i = 0; i < node->as.dict_literal.count; i++) {
+              analyze_node(sem, node->as.dict_literal.entries[i].key);
+              analyze_node(sem, node->as.dict_literal.entries[i].value);
+          }
+          break;
+
         // Statements - walk children, no scope change.
         case AST_EXPRESSION_STMT:
             analyze_node(sem, node->as.expression_stmt.expression);

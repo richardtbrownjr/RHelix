@@ -115,6 +115,48 @@ ASTNode* ast_attribute(ASTNode* object, const char* name, int line, int column) 
     return node;
 }
 
+ASTNode* ast_list_literal(int line, int column) {
+    ASTNode* node = make_node(AST_LIST_LITERAL, line, column);
+    if (!node) return NULL;
+    node->as.list_literal.elements = NULL;
+    node->as.list_literal.count = 0;
+    node->as.list_literal.capacity = 0;
+    return node;
+}
+
+void ast_list_literal_add(ASTNode* list, ASTNode* element) {
+    if (!list || list->type != AST_LIST_LITERAL || !element) return;
+    ASTListLiteral* l = &list->as.list_literal;
+    if (l->count >= l->capacity) {
+        int new_cap = l->capacity == 0 ? 4 : l->capacity * 2;
+        l->elements = (ASTNode**)realloc(l->elements, sizeof(ASTNode*) * new_cap);
+        l->capacity = new_cap;
+    }
+    l->elements[l->count++] = element;
+}
+
+ASTNode* ast_dict_literal(int line, int column) {
+    ASTNode* node = make_node(AST_DICT_LITERAL, line, column);
+    if (!node) return NULL;
+    node->as.dict_literal.entries = NULL;
+    node->as.dict_literal.count = 0;
+    node->as.dict_literal.capacity = 0;
+    return node;
+}
+
+void ast_dict_literal_add(ASTNode* dict, ASTNode* key, ASTNode* value) {
+    if (!dict || dict->type != AST_DICT_LITERAL || !key || !value) return;
+    ASTDictLiteral* d = &dict->as.dict_literal;
+    if (d->count >= d->capacity) {
+        int new_cap = d->capacity == 0 ? 4 : d->capacity * 2;
+        d->entries = (ASTDictEntry*)realloc(d->entries, sizeof(ASTDictEntry) * new_cap);
+        d->capacity = new_cap;
+    }
+    d->entries[d->count].key = key;
+    d->entries[d->count].value = value;
+    d->count++;
+}
+
 // ===== Simple statement constructors =====
 
 ASTNode* ast_expression_stmt(ASTNode* expression, int line, int column) {
@@ -390,6 +432,19 @@ void ast_destroy(ASTNode* node) {
             ast_destroy(node->as.attribute.object);
             free(node->as.attribute.name);
             break;
+      case AST_LIST_LITERAL:
+          for (int i = 0; i < node->as.list_literal.count; i++) {
+              ast_destroy(node->as.list_literal.elements[i]);
+          }
+          free(node->as.list_literal.elements);
+          break;
+      case AST_DICT_LITERAL:
+          for (int i = 0; i < node->as.dict_literal.count; i++) {
+              ast_destroy(node->as.dict_literal.entries[i].key);
+              ast_destroy(node->as.dict_literal.entries[i].value);
+          }
+          free(node->as.dict_literal.entries);
+          break;
         case AST_AUGMENTED_ASSIGNMENT:
             ast_destroy(node->as.augmented_assignment.target);
             ast_destroy(node->as.augmented_assignment.value);
@@ -493,6 +548,8 @@ const char* ast_node_type_to_string(ASTNodeType type) {
         case AST_CALL: return "Call";
         case AST_SUBSCRIPT: return "Subscript";
         case AST_ATTRIBUTE: return "Attribute";
+        case AST_LIST_LITERAL: return "ListLiteral";
+        case AST_DICT_LITERAL: return "DictLiteral";
         case AST_EXPRESSION_STMT: return "ExpressionStmt";
         case AST_ASSIGNMENT: return "Assignment";
         case AST_AUGMENTED_ASSIGNMENT: return "AugmentedAssignment";
@@ -587,6 +644,25 @@ void ast_print(ASTNode* node, int indent) {
             printf("Object:\n");
             ast_print(node->as.attribute.object, indent + 2);
             break;
+      case AST_LIST_LITERAL:
+          printf("ListLiteral(%d)\n", node->as.list_literal.count);
+          for (int i = 0; i < node->as.list_literal.count; i++) {
+              ast_print(node->as.list_literal.elements[i], indent + 1);
+          }
+          break;
+      case AST_DICT_LITERAL:
+          printf("DictLiteral(%d)\n", node->as.dict_literal.count);
+          for (int i = 0; i < node->as.dict_literal.count; i++) {
+              print_indent(indent + 1);
+              printf("Entry %d:\n", i);
+              print_indent(indent + 2);
+              printf("Key:\n");
+              ast_print(node->as.dict_literal.entries[i].key, indent + 3);
+              print_indent(indent + 2);
+              printf("Value:\n");
+              ast_print(node->as.dict_literal.entries[i].value, indent + 3);
+          }
+          break;
         case AST_EXPRESSION_STMT:
             printf("ExpressionStmt\n");
             ast_print(node->as.expression_stmt.expression, indent + 1);

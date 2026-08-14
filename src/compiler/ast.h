@@ -20,6 +20,8 @@ typedef enum {
     AST_CALL,
     AST_SUBSCRIPT,
     AST_ATTRIBUTE,
+    AST_LIST_LITERAL,
+    AST_DICT_LITERAL,
     // Simple statements
     AST_EXPRESSION_STMT,
     AST_ASSIGNMENT,
@@ -82,6 +84,25 @@ typedef struct {
     char* name;
 } ASTAttribute;
 
+typedef struct {
+    ASTNode** elements;    // Dynamic array of expression nodes
+    int count;
+    int capacity;
+} ASTListLiteral;
+
+// One key-value pair in a dict literal. Both key and value are expressions -
+// the parser doesn't restrict key types (though real semantics later might).
+typedef struct {
+    ASTNode* key;
+    ASTNode* value;
+} ASTDictEntry;
+
+typedef struct {
+    ASTDictEntry* entries;  // Dynamic array of key-value pairs
+    int count;
+    int capacity;
+} ASTDictLiteral;
+
 // === Simple statement payloads ===
 
 typedef struct {
@@ -92,6 +113,8 @@ typedef struct {
     ASTNode* target;
     ASTNode* value;
 } ASTAssignment;
+
+
 
 typedef struct {
     ASTNode* target;   // Where to store (Identifier / Attribute / Subscript)
@@ -199,6 +222,8 @@ struct ASTNode {
         ASTCall call;
         ASTSubscript subscript;
         ASTAttribute attribute;
+        ASTListLiteral list_literal;
+        ASTDictLiteral dict_literal;
         ASTExpressionStmt expression_stmt;
         ASTAssignment assignment;
         ASTAugmentedAssignment augmented_assignment;
@@ -231,6 +256,11 @@ ASTNode* ast_call(ASTNode* callee, int line, int column);
 void ast_call_add_arg(ASTNode* call, ASTNode* arg);
 ASTNode* ast_subscript(ASTNode* object, ASTNode* index, int line, int column);
 ASTNode* ast_attribute(ASTNode* object, const char* name, int line, int column);
+ASTNode* ast_list_literal(int line, int column);
+void ast_list_literal_add(ASTNode* list, ASTNode* element);
+
+ASTNode* ast_dict_literal(int line, int column);
+void ast_dict_literal_add(ASTNode* dict, ASTNode* key, ASTNode* value);
 
 // === Simple statement constructors ===
 
