@@ -12,7 +12,8 @@ typedef enum {
     SCOPE_MODULE,    // Top-level module scope (outermost)
     SCOPE_FUNCTION,  // Inside a def
     SCOPE_CLASS,     // Inside a class body
-    SCOPE_BLOCK,     // Inside an if/while/for/with body
+    SCOPE_BLOCK,     // Inside an if/else or with body (non-loop block)
+    SCOPE_LOOP_BODY, // Inside a while or for body (needed for break/continue validation)ß
     SCOPE_LAMBDA     // Inside a lambda body (function-like but expression-context)
 } ScopeKind;
 

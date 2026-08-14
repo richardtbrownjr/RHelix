@@ -91,6 +91,7 @@ const char* scope_kind_to_string(ScopeKind kind) {
         case SCOPE_FUNCTION: return "FUNCTION";
         case SCOPE_CLASS: return "CLASS";
         case SCOPE_BLOCK: return "BLOCK";
+        case SCOPE_LOOP_BODY: return "LOOP_BODY";
         case SCOPE_LAMBDA: return "LAMBDA";
         default: return "UNKNOWN";
     }
@@ -150,6 +151,29 @@ const char* symbol_kind_to_string(SymbolKind kind) {
     }
     }
 
+
+    // is_inside_loop - Returns true if the current scope chain includes at least
+    // one enclosing SCOPE_LOOP_BODY. Used by break/continue validation.
+    //
+    // Design note: we STOP walking outward if we hit a FUNCTION, LAMBDA, or CLASS
+    // scope. A break/continue inside a function nested inside a loop should NOT
+    // see the outer loop - Python semantics. Example:
+    //     while True:
+    //         def foo():
+    //             break   # ERROR - break does not escape into the outer loop
+    static bool is_inside_loop(SemanticAnalyzer* sem) {
+        if (!sem) return false;
+        for (Scope* s = sem->current_scope; s; s = s->parent) {
+            if (s->kind == SCOPE_LOOP_BODY) return true;
+            if (s->kind == SCOPE_FUNCTION ||
+                s->kind == SCOPE_LAMBDA   ||
+                s->kind == SCOPE_CLASS) {
+                return false;
+            }
+        }
+        return false;
+    }
+
     // === Error reporting ===
 
 void semantic_error(SemanticAnalyzer* sem, int line, int column,
@@ -197,8 +221,20 @@ static void analyze_node(SemanticAnalyzer* sem, ASTNode* node) {
         case AST_LITERAL_BOOL:
         case AST_LITERAL_NONE:
         case AST_PASS:
-        case AST_BREAK:
+            break;
+
+      case AST_BREAK:
+            if (!is_inside_loop(sem)) {
+                semantic_error(sem, node->line, node->column,
+                               "'break' outside loop");
+            }
+            break;
+
         case AST_CONTINUE:
+            if (!is_inside_loop(sem)) {
+                semantic_error(sem, node->line, node->column,
+                               "'continue' outside loop");
+            }
             break;
 
       case AST_IDENTIFIER: {
@@ -290,14 +326,14 @@ static void analyze_node(SemanticAnalyzer* sem, ASTNode* node) {
 
         case AST_WHILE:
             analyze_node(sem, node->as.while_stmt.condition);
-            scope_push(sem, SCOPE_BLOCK);
+            scope_push(sem, SCOPE_LOOP_BODY);
             analyze_block_body(sem, node->as.while_stmt.body);
             scope_pop(sem);
             break;
 
         case AST_FOR:
             analyze_node(sem, node->as.for_stmt.iterable);
-            scope_push(sem, SCOPE_BLOCK);
+            scope_push(sem, SCOPE_LOOP_BODY);
             // Loop variable is defined in the loop's block scope.
             if (node->as.for_stmt.var_name) {
                 symbol_define(sem, node->as.for_stmt.var_name,
