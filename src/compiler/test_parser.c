@@ -901,5 +901,45 @@ int main(void) {
            "def process(source):\n"
            "    return [1, 2, 3] |> transform |> filter(x => x > 0)\n");
 
+           printf("\n\n========== IN / NOT IN OPERATOR TESTS ==========\n");
+
+       // ---- Basic 'in' as expression ----
+       test_parser_case("in with identifier", "x in items");
+       test_parser_case("in with literal list", "3 in [1, 2, 3]");
+       test_parser_case("in with dict", "\"key\" in {\"key\": 1}");
+
+       // ---- 'not in' as expression ----
+       test_parser_case("not in with identifier", "x not in items");
+       test_parser_case("not in with literal list", "5 not in [1, 2, 3]");
+
+       // ---- Composition with logical operators ----
+       test_parser_case("in inside and",
+                        "x in items and y > 0");
+       test_parser_case("not in inside or",
+                        "x not in banned or admin");
+
+       // ---- Composition with negation (plain 'not', not 'not in') ----
+       test_parser_case("not applied to comparison (regression)",
+                        "not (x > 5)");
+
+       // ---- Composition in statements ----
+       test_module_case("if with in operator",
+           "if key in config:\n"
+           "    return config\n");
+
+       test_module_case("while with not in",
+           "while x not in visited:\n"
+           "    x = next\n");
+
+       // ---- for loop still works (regression) ----
+       test_module_case("for-in still parses (regression)",
+           "for item in items:\n"
+           "    x = item\n");
+
+       // ---- SESSION PROOF POINT ----
+       test_module_case("Set membership check with dict literal (proof point)",
+           "def is_allowed(user):\n"
+           "    return user.role in {\"admin\": True, \"editor\": True}\n");
+
     return 0;
 }
