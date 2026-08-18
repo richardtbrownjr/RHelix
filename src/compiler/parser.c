@@ -177,11 +177,26 @@ static ASTNode* comparison(Parser* parser) {
     ASTNode* left = term(parser);
     if (!left) return NULL;
     while (check(parser, TOKEN_LESS) || check(parser, TOKEN_GREATER) ||
-           check(parser, TOKEN_LESS_EQUALS) || check(parser, TOKEN_GREATER_EQUALS)) {
-        Token* op = advance(parser);
+           check(parser, TOKEN_LESS_EQUALS) || check(parser, TOKEN_GREATER_EQUALS) ||
+           check(parser, TOKEN_IN) ||
+           (check(parser, TOKEN_NOT) && peek_at(parser, 1) &&
+            peek_at(parser, 1)->type == TOKEN_IN)) {
+        // Handle 'not in' as two tokens producing Unary(NOT, Binary(IN, ...))
+        bool is_not_in = check(parser, TOKEN_NOT);
+        if (is_not_in) {
+            advance(parser);  // Consume 'not'
+        }
+        Token* op = advance(parser);  // Consume the comparison operator (or 'in')
         ASTNode* right = term(parser);
         if (!right) { ast_destroy(left); return NULL; }
-        left = ast_binary(op->type, left, right, op->line, op->column);
+        ASTNode* binop = ast_binary(op->type, left, right, op->line, op->column);
+        if (!binop) return NULL;
+        if (is_not_in) {
+            left = ast_unary(TOKEN_NOT, binop, op->line, op->column);
+            if (!left) { ast_destroy(binop); return NULL; }
+        } else {
+            left = binop;
+        }
     }
     return left;
 }
