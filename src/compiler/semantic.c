@@ -174,6 +174,21 @@ const char* symbol_kind_to_string(SymbolKind kind) {
         return false;
     }
 
+    // is_inside_function - Returns true if the current scope chain includes
+    // at least one enclosing SCOPE_FUNCTION or SCOPE_LAMBDA. Used by return
+    // statement validation.
+    //
+    // Unlike is_inside_loop (which stops at function boundaries), return
+    // simply targets the innermost function-or-lambda. First hit wins; we
+    // walk outward until we find one or exhaust the chain.
+    static bool is_inside_function(SemanticAnalyzer* sem) {
+        if (!sem) return false;
+        for (Scope* s = sem->current_scope; s; s = s->parent) {
+            if (s->kind == SCOPE_FUNCTION || s->kind == SCOPE_LAMBDA) return true;
+        }
+        return false;
+    }
+
     // === Error reporting ===
 
 void semantic_error(SemanticAnalyzer* sem, int line, int column,
@@ -314,6 +329,10 @@ static void analyze_node(SemanticAnalyzer* sem, ASTNode* node) {
           analyze_node(sem, node->as.augmented_assignment.value);
           break;
         case AST_RETURN:
+            if (!is_inside_function(sem)) {
+                semantic_error(sem, node->line, node->column,
+                               "'return' outside function");
+            }
             if (node->as.ret.value) {
                 analyze_node(sem, node->as.ret.value);
             }
