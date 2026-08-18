@@ -207,6 +207,47 @@ int main(void) {
         "        break\n");
 
     printf("\n========== END BREAK/CONTINUE VALIDATION TESTS ==========\n");
+
+    printf("\n\n========== RETURN VALIDATION TESTS ==========\n");
+
+    // ---- Cases that SHOULD PASS ----
+
+    run_semantic_case("return inside function (should pass)",
+        "def foo():\n"
+        "    return 5\n");
+
+    run_semantic_case("bare return inside function (should pass)",
+        "def foo():\n"
+        "    return\n");
+
+    run_semantic_case("return with expression inside function (should pass)",
+        "def foo(x):\n"
+        "    return x + 1\n");
+
+    run_semantic_case("return inside method (should pass)",
+        "class Counter:\n"
+        "    def get(self):\n"
+        "        return self.value\n");
+
+    run_semantic_case("return inside nested function (should pass)",
+        "def outer():\n"
+        "    def inner():\n"
+        "        return 1\n"
+        "    return inner\n");
+
+    // ---- Cases that SHOULD ERROR ----
+
+    run_semantic_case("return at module level (should error)",
+        "return 5\n");
+
+    run_semantic_case("bare return at module level (should error)",
+        "return\n");
+
+    run_semantic_case("return in class body outside method (should error)",
+        "class Foo:\n"
+        "    return 5\n");
+
+    printf("\n========== END RETURN VALIDATION TESTS ==========\n");
     
     return 0;
 }
