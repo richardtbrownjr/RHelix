@@ -11,3 +11,6 @@ build/
 
 # OS files
 .DS_Store
+
+# Local notes
+src/compiler/readme.txt
