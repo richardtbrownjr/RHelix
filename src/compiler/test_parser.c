@@ -940,6 +940,48 @@ int main(void) {
        test_module_case("Set membership check with dict literal (proof point)",
            "def is_allowed(user):\n"
            "    return user.role in {\"admin\": True, \"editor\": True}\n");
+           printf("\n\n========== IS / IS NOT OPERATOR TESTS ==========\n");
+
+   // ---- Basic 'is' ----
+   test_parser_case("is with None", "x is None");
+   test_parser_case("is with identifier", "a is b");
+   test_parser_case("is with True", "flag is True");
+
+   // ---- 'is not' as expression ----
+   test_parser_case("is not None", "x is not None");
+   test_parser_case("is not with identifier", "a is not b");
+   test_parser_case("is not False", "flag is not False");
+
+   // ---- Composition with logical operators ----
+   test_parser_case("is inside and",
+                    "x is None and y is None");
+   test_parser_case("is not inside or",
+                    "x is not None or admin");
+
+   // ---- Composition with 'in' (both comparison-level, no interaction) ----
+   test_parser_case("is and in together",
+                    "x is None and y in items");
+
+   // ---- Regression: plain 'not' still works ----
+   test_parser_case("not applied to comparison (regression)",
+                    "not (x > 5)");
+
+   // ---- Statements ----
+   test_module_case("if with is None guard",
+       "if x is None:\n"
+       "    return default\n");
+
+   test_module_case("while with is not None",
+       "while x is not None:\n"
+       "    x = next\n");
+
+   // ---- SESSION PROOF POINT ----
+   test_module_case("Null check pattern in method (proof point)",
+       "class Cache:\n"
+       "    def get(self, key):\n"
+       "        if self.store is not None and key in self.store:\n"
+       "            return self.store[key]\n"
+       "        return None\n");
 
     return 0;
 }
