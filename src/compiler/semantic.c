@@ -104,6 +104,19 @@ Symbol* symbol_define(SemanticAnalyzer* sem, const char* name, SymbolKind kind,
                       int line, int column) {
     if (!sem || !sem->current_scope || !name) return NULL;
 
+    // Redeclaration warning: if a function, method, or class is being defined
+    // and a symbol with the same name (of ANY kind) already exists in the
+    // current scope, that's almost always a bug. We don't warn on variable
+    // redefinition because that's normal reassignment.
+    if (kind == SYM_FUNCTION || kind == SYM_METHOD || kind == SYM_CLASS) {
+        Symbol* existing = symbol_lookup_local(sem, name);
+        if (existing) {
+            semantic_warning(sem, line, column,
+                             "redeclaration of '%s' (previously defined at line %d)",
+                             name, existing->defined_line);
+        }
+    }
+
     Symbol* sym = (Symbol*)malloc(sizeof(Symbol));
     if (!sym) return NULL;
 
