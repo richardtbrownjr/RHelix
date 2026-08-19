@@ -59,6 +59,7 @@ static void run_semantic_case(const char* label, const char* source) {
     printf("  Analysis: %s\n", ok ? "OK" : "FAILED");
     printf("  Max scope depth reached: %d\n", sem->max_depth_reached);
     printf("  Errors: %d\n", sem->error_count);
+    printf("  Warnings: %d\n", sem->warning_count);
     printf("  Scope stack empty at end: %s\n",
            sem->current_scope == NULL ? "yes" : "NO (imbalance!)");
 
@@ -248,6 +249,63 @@ int main(void) {
         "    return 5\n");
 
     printf("\n========== END RETURN VALIDATION TESTS ==========\n");
-    
+
+    printf("\n\n========== REDECLARATION WARNING TESTS ==========\n");
+
+    // ---- Cases that SHOULD WARN ----
+
+    run_semantic_case("Function redeclared at module level (should warn)",
+        "def foo():\n"
+        "    return 1\n"
+        "def foo():\n"
+        "    return 2\n");
+
+    run_semantic_case("Class redeclared at module level (should warn)",
+        "class Foo:\n"
+        "    pass\n"
+        "class Foo:\n"
+        "    pass\n");
+
+    run_semantic_case("Method redeclared in class (should warn)",
+        "class Counter:\n"
+        "    def increment(self):\n"
+        "        return 1\n"
+        "    def increment(self):\n"
+        "        return 2\n");
+
+    run_semantic_case("Function shadows variable (should warn)",
+        "x = 5\n"
+        "def x():\n"
+        "    return 1\n");
+
+    // ---- Cases that should NOT warn ----
+
+    run_semantic_case("Variable reassignment (should NOT warn)",
+        "x = 5\n"
+        "x = 10\n");
+
+    run_semantic_case("Same-named methods in different classes (should NOT warn)",
+        "class A:\n"
+        "    def foo(self):\n"
+        "        return 1\n"
+        "class B:\n"
+        "    def foo(self):\n"
+        "        return 2\n");
+
+    run_semantic_case("Method shadows top-level function (should NOT warn)",
+        "def foo():\n"
+        "    return 1\n"
+        "class Bar:\n"
+        "    def foo(self):\n"
+        "        return 2\n");
+
+    run_semantic_case("Nested function (should NOT warn)",
+        "def outer():\n"
+        "    def inner():\n"
+        "        return 1\n"
+        "    return inner\n");
+
+    printf("\n========== END REDECLARATION WARNING TESTS ==========\n");
+
     return 0;
 }
