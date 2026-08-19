@@ -108,6 +108,7 @@ def withdraw(account, amount):
 - [x] Subscripts (`arr[i]`) — chains naturally to `arr[i][j]`
 - [x] Collection literals — lists (`[1, 2, 3]`), dicts (`{"a": 1, "b": 2}`), nested and mixed types, trailing commas allowed
 - [x] Membership operators (`in`, `not in`) — comparison-level precedence; `not in` handled via two-token lookahead producing `Unary(NOT, Binary(IN, ...))` — no new AST nodes
+- [x] Identity operators (`is`, `is not`) — comparison-level precedence; `is not` handled as two-token post-consumption pattern; both wrap into `Unary(NOT, Binary(IS, ...))` — same shape as `not in`, no new AST nodes
 - [x] Attribute access (`obj.field`) — chains naturally to `obj.a.b.c`
 - [x] Method calls (`obj.method(args)`) via Attribute + Call composition
 - [x] Free composition of all postfix forms: `obj.method(arg).field[0]`
@@ -122,6 +123,7 @@ def withdraw(account, amount):
 - [x] Name resolution — identifier references looked up in the scope chain; undefined names reported as errors with source location; `error_count` tracked on `SemanticAnalyzer`
 - [x] break/continue validation — new SCOPE_LOOP_BODY kind pushed by while/for; is_inside_loop walks parent scopes, stops at function/lambda/class boundaries (Python semantics)
 - [x] return validation — is_inside_function walks scope chain looking for SCOPE_FUNCTION or SCOPE_LAMBDA; return outside a function-like scope reports 'return outside function' error with source location
+- [x] Redeclaration warnings — `semantic_warning` infrastructure separate from `semantic_error` (non-fatal, tracked as `warning_count`); functions, methods, and classes redefined in the same scope emit warnings with previous-definition line info; variable reassignment does not warn (normal Python)
 
 ## In Progress
 
@@ -250,6 +252,8 @@ utilities.
 - ✅ Collection literals — lists, dicts, arbitrary nesting, real serialization patterns (`return {"count": self.count}`) parse cleanly
 - ✅ return validation — 'return' now caught outside function/lambda scopes; innermost-function-wins semantics verified via nested-function test
 - ✅ Membership operators — `x in items`, `x not in banned`, real permission-check code (`user.role in {"admin": True}`) parses cleanly
+- ✅ Redeclaration warnings — first non-fatal semantic check; `semantic_warning` infrastructure lets analyzer distinguish "definitely wrong" (errors) from "probably wrong" (warnings) with `warning_count` tracked separately
+- ✅ Identity operators (`is`, `is not`) — mirrors `in`/`not in` at same precedence; unified handling of both two-token negation patterns; real null-check code (`if self.store is not None and key in self.store:`) parses cleanly
 - 🚧 Type checking against annotations — the big remaining semantic bite; requires inferring expression types and matching against declared annotations
 
 ## License
