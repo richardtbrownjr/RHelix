@@ -178,20 +178,35 @@ static ASTNode* comparison(Parser* parser) {
     if (!left) return NULL;
     while (check(parser, TOKEN_LESS) || check(parser, TOKEN_GREATER) ||
            check(parser, TOKEN_LESS_EQUALS) || check(parser, TOKEN_GREATER_EQUALS) ||
-           check(parser, TOKEN_IN) ||
+           check(parser, TOKEN_IN) || check(parser, TOKEN_IS) ||
            (check(parser, TOKEN_NOT) && peek_at(parser, 1) &&
-            peek_at(parser, 1)->type == TOKEN_IN)) {
-        // Handle 'not in' as two tokens producing Unary(NOT, Binary(IN, ...))
-        bool is_not_in = check(parser, TOKEN_NOT);
-        if (is_not_in) {
-            advance(parser);  // Consume 'not'
+            (peek_at(parser, 1)->type == TOKEN_IN ||
+             peek_at(parser, 1)->type == TOKEN_IS))) {
+        // Handle 'not in' and 'is not'... wait, 'is not' is different.
+        // 'not in': NOT then IN (two tokens meaning "not in")
+        // 'is not': IS then NOT (two tokens meaning "is not")
+        // Both produce Unary(NOT, Binary(op, left, right)).
+        bool is_negated = false;
+
+        if (check(parser, TOKEN_NOT)) {
+            // 'not in' pattern: consume NOT, then IN follows
+            advance(parser);
+            is_negated = true;
         }
-        Token* op = advance(parser);  // Consume the comparison operator (or 'in')
+
+        Token* op = advance(parser);  // Consume <, >, <=, >=, in, or is
+
+        // 'is not' pattern: after consuming IS, check if NOT follows
+        if (op->type == TOKEN_IS && check(parser, TOKEN_NOT)) {
+            advance(parser);  // Consume NOT
+            is_negated = true;
+        }
+
         ASTNode* right = term(parser);
         if (!right) { ast_destroy(left); return NULL; }
         ASTNode* binop = ast_binary(op->type, left, right, op->line, op->column);
         if (!binop) return NULL;
-        if (is_not_in) {
+        if (is_negated) {
             left = ast_unary(TOKEN_NOT, binop, op->line, op->column);
             if (!left) { ast_destroy(binop); return NULL; }
         } else {

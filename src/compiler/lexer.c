@@ -23,6 +23,7 @@ static Keyword keywords[] = {
     {"elif", TOKEN_ELIF},
     {"for", TOKEN_FOR},
     {"in", TOKEN_IN},
+    {"is", TOKEN_IS},
     {"and", TOKEN_AND},
     {"or", TOKEN_OR},
     {"not", TOKEN_NOT},
