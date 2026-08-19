@@ -23,6 +23,7 @@ SemanticAnalyzer* semantic_create(void) {
     sem->current_scope = NULL;
     sem->had_error = false;
     sem->error_count = 0;
+    sem->warning_count = 0;
     sem->max_depth_reached = 0;
     sem->debug_print_scopes = false;
     return sem;
@@ -198,6 +199,22 @@ void semantic_error(SemanticAnalyzer* sem, int line, int column,
     sem->error_count++;
 
     fprintf(stderr, "[semantic] line %d, col %d: ", line, column);
+
+    va_list args;
+    va_start(args, format);
+    vfprintf(stderr, format, args);
+    va_end(args);
+
+    fprintf(stderr, "\n");
+}
+
+void semantic_warning(SemanticAnalyzer* sem, int line, int column,
+                      const char* format, ...) {
+    if (!sem) return;
+    // Warning does NOT set had_error - the compilation can still proceed.
+    sem->warning_count++;
+
+    fprintf(stderr, "[semantic warning] line %d, col %d: ", line, column);
 
     va_list args;
     va_start(args, format);

@@ -61,6 +61,7 @@ typedef struct {
     Scope* current_scope;
     bool had_error;
     int error_count;   // Number of semantic errors reported during analysis
+    int warning_count; // Number of semantic warnings emitted (non-fatal)
     // Track deepest scope depth reached during analysis - useful for
     // debugging and validates that push/pop are balanced.
     int max_depth_reached;
@@ -119,5 +120,12 @@ const char* symbol_kind_to_string(SymbolKind kind);
 // structured errors is a future polish.
 void semantic_error(SemanticAnalyzer* sem, int line, int column,
                     const char* format, ...);
+
+// Report a semantic warning (non-fatal). Prints to stderr with source
+// location, increments warning_count but does NOT set had_error. Used
+// for issues that are technically valid code but likely bugs
+// (redeclaration, shadowing, unused variables in the future).
+void semantic_warning(SemanticAnalyzer* sem, int line, int column,
+                      const char* format, ...);
 
 #endif
