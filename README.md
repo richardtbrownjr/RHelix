@@ -109,6 +109,7 @@ def withdraw(account, amount):
 - [x] Collection literals — lists (`[1, 2, 3]`), dicts (`{"a": 1, "b": 2}`), nested and mixed types, trailing commas allowed
 - [x] Membership operators (`in`, `not in`) — comparison-level precedence; `not in` handled via two-token lookahead producing `Unary(NOT, Binary(IN, ...))` — no new AST nodes
 - [x] Identity operators (`is`, `is not`) — comparison-level precedence; `is not` handled as two-token post-consumption pattern; both wrap into `Unary(NOT, Binary(IS, ...))` — same shape as `not in`, no new AST nodes
+- [x] Ternary conditional expressions (`x if cond else y`) — precedence below pipeline, right-associative when chained (`a if b else c if d else e` groups as `a if b else (c if d else e)`); new AST_TERNARY node with then/condition/else fields
 - [x] Attribute access (`obj.field`) — chains naturally to `obj.a.b.c`
 - [x] Method calls (`obj.method(args)`) via Attribute + Call composition
 - [x] Free composition of all postfix forms: `obj.method(arg).field[0]`
@@ -124,6 +125,7 @@ def withdraw(account, amount):
 - [x] break/continue validation — new SCOPE_LOOP_BODY kind pushed by while/for; is_inside_loop walks parent scopes, stops at function/lambda/class boundaries (Python semantics)
 - [x] return validation — is_inside_function walks scope chain looking for SCOPE_FUNCTION or SCOPE_LAMBDA; return outside a function-like scope reports 'return outside function' error with source location
 - [x] Redeclaration warnings — `semantic_warning` infrastructure separate from `semantic_error` (non-fatal, tracked as `warning_count`); functions, methods, and classes redefined in the same scope emit warnings with previous-definition line info; variable reassignment does not warn (normal Python)
+- [x] Function call arity checking — first "type-checking-adjacent" check; Symbol now carries `param_count`; AST_CALL walker validates argument count against callee's declared arity when callee is a bare identifier resolving to SYM_FUNCTION or SYM_METHOD; skips attribute-callee, subscript-callee, and variable-held-function safely rather than false-positive
 
 ## In Progress
 
@@ -254,7 +256,9 @@ utilities.
 - ✅ Membership operators — `x in items`, `x not in banned`, real permission-check code (`user.role in {"admin": True}`) parses cleanly
 - ✅ Redeclaration warnings — first non-fatal semantic check; `semantic_warning` infrastructure lets analyzer distinguish "definitely wrong" (errors) from "probably wrong" (warnings) with `warning_count` tracked separately
 - ✅ Identity operators (`is`, `is not`) — mirrors `in`/`not in` at same precedence; unified handling of both two-token negation patterns; real null-check code (`if self.store is not None and key in self.store:`) parses cleanly
-- 🚧 Type checking against annotations — the big remaining semantic bite; requires inferring expression types and matching against declared annotations
+- ✅ Function call arity checking — first "type-checking-adjacent" semantic check; catches the classic "refactor drops a parameter" bug at parse time via Symbol.param_count populated at function definition and checked at call sites
+- ✅ Ternary expressions (`x if cond else y`) — right-associative when chained; real safe-dictionary-lookup patterns (`return self.store[key] if key in self.store else None`) parse cleanly with ternary + `in` + subscript composing
+- 🚧 Full type checking against annotations — the remaining semantic bite; requires expression-type inference and matching against declared parameter and return type annotations
 
 ## License
 
