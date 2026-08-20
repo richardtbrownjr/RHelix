@@ -983,5 +983,49 @@ int main(void) {
        "            return self.store[key]\n"
        "        return None\n");
 
+       printf("\n\n========== TERNARY EXPRESSION TESTS ==========\n");
+
+   // ---- Basic ternary ----
+   test_parser_case("Simple ternary", "a if cond else b");
+   test_parser_case("Ternary with literals", "1 if x else 2");
+   test_parser_case("Ternary with expressions on both sides",
+                    "x + 1 if x else 0");
+
+   // ---- Right-associativity: chained ternary ----
+   test_parser_case("Chained ternary (right-associative)",
+                    "a if b else c if d else e");
+   // Expected: a if b else (c if d else e)
+
+   // ---- Composition with other operators ----
+   test_parser_case("Ternary with logical operators in condition",
+                    "x if a and b else y");
+   test_parser_case("Ternary with comparison in condition",
+                    "small if n < 10 else large");
+   test_parser_case("Ternary inside call args",
+                    "print(x if flag else y)");
+
+   // ---- Assignment with ternary as value ----
+   test_module_case("Assignment with ternary",
+       "result = value if cond else default\n");
+
+   test_module_case("Assignment with chained ternary",
+       "label = 'small' if n < 10 else 'medium' if n < 100 else 'large'\n");
+
+   // ---- Ternary in return ----
+   test_module_case("Return with ternary",
+       "def sign(n):\n"
+       "    return 1 if n > 0 else -1 if n < 0 else 0\n");
+
+   // ---- Regression: 'if' as statement still works ----
+   test_module_case("If statement still parses (regression)",
+       "if x > 0:\n"
+       "    return x\n");
+
+   // ---- SESSION PROOF POINT ----
+   test_module_case("Class method with ternary null-guard (proof point)",
+       "class Cache:\n"
+       "    def lookup(self, key):\n"
+       "        return self.store[key] if key in self.store else None\n");
+
     return 0;
 }
