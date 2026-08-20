@@ -44,6 +44,7 @@ typedef struct Symbol {
     int defined_line;        // Where this symbol was defined
     int defined_column;
     struct Symbol* next;     // Next symbol in the same scope's table
+    int param_count;         // Number of declared params (SYM_FUNCTION/METHOD only, -1 otherwise)
 } Symbol;
 
 typedef struct Scope {

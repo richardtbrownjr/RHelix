@@ -124,6 +124,7 @@ Symbol* symbol_define(SemanticAnalyzer* sem, const char* name, SymbolKind kind,
     sym->kind = kind;
     sym->defined_line = line;
     sym->defined_column = column;
+    sym->param_count = -1;  // Default: not applicable; set for SYM_FUNCTION/METHOD in walker
 
     // Prepend to the current scope's symbol table. Prepending is O(1) and
     // gives us the "newer symbols shadow older ones" behavior for free
@@ -310,6 +311,27 @@ static void analyze_node(SemanticAnalyzer* sem, ASTNode* node) {
             for (int i = 0; i < node->as.call.arg_count; i++) {
                 analyze_node(sem, node->as.call.args[i]);
             }
+            // Arity check: if the callee is a bare identifier resolving to
+            // a function/method with known param_count, compare against
+            // actual argument count. Silently skip other callees (subscripts,
+            // attribute access, variables holding functions) - we can't
+            // reliably determine their arity today.
+            if (node->as.call.callee &&
+                node->as.call.callee->type == AST_IDENTIFIER) {
+                Symbol* fsym = symbol_lookup(sem,
+                    node->as.call.callee->as.identifier.name);
+                if (fsym &&
+                    (fsym->kind == SYM_FUNCTION || fsym->kind == SYM_METHOD) &&
+                    fsym->param_count >= 0 &&
+                    fsym->param_count != node->as.call.arg_count) {
+                    semantic_error(sem, node->line, node->column,
+                        "'%s' expects %d argument(s) but got %d",
+                        node->as.call.callee->as.identifier.name,
+                        fsym->param_count,
+                        node->as.call.arg_count);
+                }
+            }
+            
             break;
         case AST_SUBSCRIPT:
             analyze_node(sem, node->as.subscript.object);
@@ -429,8 +451,12 @@ static void analyze_node(SemanticAnalyzer* sem, ASTNode* node) {
                 SymbolKind fk = (sem->current_scope &&
                                  sem->current_scope->kind == SCOPE_CLASS)
                                 ? SYM_METHOD : SYM_FUNCTION;
-                symbol_define(sem, node->as.function_def.name,
-                              fk, node->line, node->column);
+                Symbol* fsym = symbol_define(sem, node->as.function_def.name,
+                                             fk, node->line, node->column);
+                if (fsym) {
+                    // Record arity so call sites can validate argument counts.
+                    fsym->param_count = node->as.function_def.param_count;
+                }
             }
             scope_push(sem, SCOPE_FUNCTION);
             // Parameters live in the function's own scope.
