@@ -307,5 +307,67 @@ int main(void) {
 
     printf("\n========== END REDECLARATION WARNING TESTS ==========\n");
 
+    printf("\n\n========== ARITY CHECK TESTS ==========\n");
+
+// ---- Cases that SHOULD PASS (correct arity) ----
+
+run_semantic_case("Zero-param function called with zero args (should pass)",
+    "def foo():\n"
+    "    return 1\n"
+    "x = foo()\n");
+
+run_semantic_case("Single-param function called with one arg (should pass)",
+    "def double(n):\n"
+    "    return n + n\n"
+    "x = double(5)\n");
+
+run_semantic_case("Multi-param function called correctly (should pass)",
+    "def add(a, b):\n"
+    "    return a + b\n"
+    "x = add(1, 2)\n");
+
+// ---- Cases that SHOULD ERROR (arity mismatch) ----
+
+run_semantic_case("Too few arguments (should error)",
+    "def add(a, b):\n"
+    "    return a + b\n"
+    "x = add(1)\n");
+
+run_semantic_case("Too many arguments (should error)",
+    "def double(n):\n"
+    "    return n + n\n"
+    "x = double(1, 2, 3)\n");
+
+run_semantic_case("Args passed to zero-param function (should error)",
+    "def hello():\n"
+    "    return 1\n"
+    "x = hello(name)\n");
+
+// ---- Cases that SHOULD BE SILENTLY SKIPPED (can't check safely) ----
+
+run_semantic_case("Method call (attribute callee - skipped)",
+    "class Counter:\n"
+    "    def increment(self):\n"
+    "        return 1\n"
+    "c = Counter()\n"
+    "x = c.increment()\n");
+// Note: c.increment is AST_ATTRIBUTE, not AST_IDENTIFIER - skipped.
+// Expected: 0 arity errors. Counter() call above is also skipped
+// because we don't yet track class 'constructors' as functions.
+
+run_semantic_case("Undefined function call (should error via name resolution, not arity)",
+    "x = undefined_func(1, 2)\n");
+// Expected: 1 name resolution error, 0 arity errors (lookup returns NULL).
+
+// ---- SESSION PROOF POINT ----
+run_semantic_case("Real bug pattern - refactor drops a parameter (proof point)",
+    "def calculate(base, rate, term):\n"
+    "    return base * rate * term\n"
+    "result = calculate(1000, 0.05)\n");
+// Expected: 1 arity error - the classic "removed a parameter but
+// forgot to update call sites" bug.
+
+printf("\n========== END ARITY CHECK TESTS ==========\n");
+
     return 0;
 }
