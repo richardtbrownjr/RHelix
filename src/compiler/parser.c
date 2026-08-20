@@ -87,6 +87,7 @@ static Token* consume(Parser* parser, TokenType type, const char* message) {
 // ===== Forward declarations =====
 
 static ASTNode* expression(Parser* parser);
+static ASTNode* ternary(Parser* parser);
 static ASTNode* pipeline(Parser* parser);
 static ASTNode* logical_or(Parser* parser);
 static ASTNode* logical_and(Parser* parser);
@@ -117,7 +118,40 @@ static ASTNode* decorated_statement(Parser* parser);
 // ===== Expression grammar =====
 
 static ASTNode* expression(Parser* parser) {
-    return pipeline(parser);
+    return ternary(parser);
+}
+
+// ternary -> pipeline ( "if" pipeline "else" ternary )?
+//
+// Python-style conditional expression: 'then_expr if condition else else_expr'.
+// Lower precedence than pipeline so 'x + 1 if cond else y' parses as
+// '(x + 1) if cond else y'. Right-associative when chained via recursion
+// into ternary() for the else branch:
+//   a if b else c if d else e => a if b else (c if d else e)
+// Condition is parsed with pipeline() (not ternary()) so nested 'if' in
+// the condition position is a parse error - matches Python semantics.
+static ASTNode* ternary(Parser* parser) {
+    ASTNode* then_expr = pipeline(parser);
+    if (!then_expr) return NULL;
+    if (!check(parser, TOKEN_IF)) {
+        return then_expr;
+    }
+    Token* if_tok = advance(parser);  // Consume 'if'
+    ASTNode* condition = pipeline(parser);
+    if (!condition) { ast_destroy(then_expr); return NULL; }
+    if (!consume(parser, TOKEN_ELSE, "Expected 'else' after ternary condition")) {
+        ast_destroy(then_expr);
+        ast_destroy(condition);
+        return NULL;
+    }
+    ASTNode* else_expr = ternary(parser);  // Recursive for right-associativity
+    if (!else_expr) {
+        ast_destroy(then_expr);
+        ast_destroy(condition);
+        return NULL;
+    }
+    return ast_ternary(then_expr, condition, else_expr,
+                       if_tok->line, if_tok->column);
 }
 
 // pipeline -> logical_or ( "|>" logical_or )*

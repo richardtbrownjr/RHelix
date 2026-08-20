@@ -331,7 +331,7 @@ static void analyze_node(SemanticAnalyzer* sem, ASTNode* node) {
                         node->as.call.arg_count);
                 }
             }
-            
+
             break;
         case AST_SUBSCRIPT:
             analyze_node(sem, node->as.subscript.object);
@@ -477,6 +477,13 @@ static void analyze_node(SemanticAnalyzer* sem, ASTNode* node) {
         }
         analyze_node(sem, node->as.lambda.body);
         scope_pop(sem);
+        break;
+        
+      case AST_TERNARY:
+        // No new scope - all three branches live in the current scope.
+        analyze_node(sem, node->as.ternary.condition);
+        analyze_node(sem, node->as.ternary.then_expr);
+        analyze_node(sem, node->as.ternary.else_expr);
         break;
 
         case AST_CLASS_DEF:

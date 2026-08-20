@@ -313,7 +313,15 @@ void ast_lambda_add_param(ASTNode* lambda, const char* param_name) {
     l->param_names[l->param_count] = strdup(param_name);
     l->param_count++;
 }
-
+ASTNode* ast_ternary(ASTNode* then_expr, ASTNode* condition, ASTNode* else_expr,
+                     int line, int column) {
+    ASTNode* node = make_node(AST_TERNARY, line, column);
+    if (!node) return NULL;
+    node->as.ternary.then_expr = then_expr;
+    node->as.ternary.condition = condition;
+    node->as.ternary.else_expr = else_expr;
+    return node;
+}
 ASTNode* ast_class_def(const char* name, ASTNode* body, int line, int column) {
     ASTNode* node = make_node(AST_CLASS_DEF, line, column);
     if (!node) return NULL;
@@ -509,6 +517,11 @@ void ast_destroy(ASTNode* node) {
           free(node->as.lambda.param_names);
           ast_destroy(node->as.lambda.body);
           break;
+      case AST_TERNARY:
+        ast_destroy(node->as.ternary.then_expr);
+        ast_destroy(node->as.ternary.condition);
+        ast_destroy(node->as.ternary.else_expr);
+        break;
         case AST_CLASS_DEF:
             free(node->as.class_def.name);
             for (int i = 0; i < node->as.class_def.base_count; i++) {
@@ -556,6 +569,7 @@ const char* ast_node_type_to_string(ASTNodeType type) {
         case AST_RETURN: return "Return";
         case AST_PASS: return "Pass";
         case AST_LAMBDA: return "Lambda";
+        case AST_TERNARY: return "Ternary";
         case AST_BREAK: return "Break";
         case AST_CONTINUE: return "Continue";
         case AST_BLOCK: return "Block";
@@ -791,6 +805,18 @@ void ast_print(ASTNode* node, int indent) {
           print_indent(indent + 1);
           printf("Body:\n");
           ast_print(node->as.lambda.body, indent + 2);
+          break;
+      case AST_TERNARY:
+          printf("Ternary\n");
+          print_indent(indent + 1);
+          printf("Then:\n");
+          ast_print(node->as.ternary.then_expr, indent + 2);
+          print_indent(indent + 1);
+          printf("Condition:\n");
+          ast_print(node->as.ternary.condition, indent + 2);
+          print_indent(indent + 1);
+          printf("Else:\n");
+          ast_print(node->as.ternary.else_expr, indent + 2);
           break;
         case AST_CLASS_DEF:
             printf("ClassDef(%s)\n",

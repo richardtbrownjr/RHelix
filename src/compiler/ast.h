@@ -39,6 +39,7 @@ typedef enum {
     // Declarations
     AST_FUNCTION_DEF,
     AST_LAMBDA,
+    AST_TERNARY,
     AST_CLASS_DEF,
     // Top level
     AST_MODULE
@@ -185,6 +186,16 @@ typedef struct {
     ASTNode* body;       // Single expression (lambdas are expression-bodied)
 } ASTLambda;
 
+// Ternary conditional expression: then_expr if condition else else_expr
+// Right-associative when chained; else_expr can itself be a ternary,
+// allowing 'a if b else c if d else e' to nest naturally as
+// 'a if b else (c if d else e)'.
+typedef struct {
+    ASTNode* then_expr;
+    ASTNode* condition;
+    ASTNode* else_expr;
+} ASTTernary;
+
 typedef struct {
     char* name;
     ASTNode** base_classes;      // Dynamic array of identifier nodes
@@ -235,6 +246,7 @@ struct ASTNode {
         ASTWith with_stmt;
         ASTFunctionDef function_def;
         ASTLambda lambda;
+        ASTTernary ternary;
         ASTClassDef class_def;
         ASTModule module;
         // AST_PASS, AST_LITERAL_NONE have no payload
@@ -293,6 +305,8 @@ void ast_function_def_add_param(ASTNode* func_def, const char* param_name,
                                 ASTNode* type_annotation);
 
 ASTNode* ast_lambda(ASTNode* body, int line, int column);
+ASTNode* ast_ternary(ASTNode* then_expr, ASTNode* condition, ASTNode* else_expr,
+                     int line, int column);
 void ast_lambda_add_param(ASTNode* lambda, const char* param_name);
 
 ASTNode* ast_class_def(const char* name, ASTNode* body, int line, int column);
