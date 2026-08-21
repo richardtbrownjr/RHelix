@@ -2,6 +2,7 @@
 #define SEMANTIC_H
 
 #include "ast.h"
+#include "types.h"
 #include <stdbool.h>
 
 // ScopeKind classifies why a new scope exists. This matters because different
@@ -45,6 +46,7 @@ typedef struct Symbol {
     int defined_column;
     struct Symbol* next;     // Next symbol in the same scope's table
     int param_count;         // Number of declared params (SYM_FUNCTION/METHOD only, -1 otherwise)
+    Type* type;              // Inferred or declared type of this symbol (owned)
 } Symbol;
 
 typedef struct Scope {

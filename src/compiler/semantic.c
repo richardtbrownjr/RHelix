@@ -75,6 +75,7 @@ void scope_pop(SemanticAnalyzer* sem) {
     while (sym) {
         Symbol* next = sym->next;
         free(sym->name);
+        type_destroy(sym->type);
         free(sym);
         sym = next;
     }
@@ -125,6 +126,7 @@ Symbol* symbol_define(SemanticAnalyzer* sem, const char* name, SymbolKind kind,
     sym->defined_line = line;
     sym->defined_column = column;
     sym->param_count = -1;  // Default: not applicable; set for SYM_FUNCTION/METHOD in walker
+    sym->type = NULL;  // Type populated by walker after symbol_define returns
 
     // Prepend to the current scope's symbol table. Prepending is O(1) and
     // gives us the "newer symbols shadow older ones" behavior for free
@@ -478,7 +480,7 @@ static void analyze_node(SemanticAnalyzer* sem, ASTNode* node) {
         analyze_node(sem, node->as.lambda.body);
         scope_pop(sem);
         break;
-        
+
       case AST_TERNARY:
         // No new scope - all three branches live in the current scope.
         analyze_node(sem, node->as.ternary.condition);
