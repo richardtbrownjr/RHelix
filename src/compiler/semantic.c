@@ -367,10 +367,15 @@ static void analyze_node(SemanticAnalyzer* sem, ASTNode* node) {
           // define new names - they mutate existing objects.
           if (node->as.assignment.target &&
               node->as.assignment.target->type == AST_IDENTIFIER) {
-              symbol_define(sem,
-                            node->as.assignment.target->as.identifier.name,
-                            SYM_VARIABLE,
-                            node->line, node->column);
+                Symbol* asym = symbol_define(sem,
+                node->as.assignment.target->as.identifier.name,
+                SYM_VARIABLE,
+                node->line, node->column);
+          if (asym) {
+              // Infer type from RHS literal if possible; otherwise ANY.
+              Type* rhs_type = type_of_literal(node->as.assignment.value);
+              asym->type = rhs_type ? rhs_type : type_create_primitive(TYPE_ANY);
+          }
           }
             analyze_node(sem, node->as.assignment.target);
             analyze_node(sem, node->as.assignment.value);
@@ -423,8 +428,9 @@ static void analyze_node(SemanticAnalyzer* sem, ASTNode* node) {
             scope_push(sem, SCOPE_LOOP_BODY);
             // Loop variable is defined in the loop's block scope.
             if (node->as.for_stmt.var_name) {
-                symbol_define(sem, node->as.for_stmt.var_name,
-                              SYM_VARIABLE, node->line, node->column);
+              Symbol* fsym = symbol_define(sem, node->as.for_stmt.var_name,
+                          SYM_VARIABLE, node->line, node->column);
+              if (fsym) fsym->type = type_create_primitive(TYPE_ANY);
             }
             analyze_block_body(sem, node->as.for_stmt.body);
             scope_pop(sem);
@@ -435,8 +441,9 @@ static void analyze_node(SemanticAnalyzer* sem, ASTNode* node) {
             scope_push(sem, SCOPE_BLOCK);
             // 'as' binding (if present) is defined in the with-block scope.
             if (node->as.with_stmt.var_name) {
-                symbol_define(sem, node->as.with_stmt.var_name,
-                              SYM_VARIABLE, node->line, node->column);
+              Symbol* wsym = symbol_define(sem, node->as.with_stmt.var_name,
+                          SYM_VARIABLE, node->line, node->column);
+              if (wsym) wsym->type = type_create_primitive(TYPE_ANY);
             }
             analyze_block_body(sem, node->as.with_stmt.body);
             scope_pop(sem);
@@ -458,13 +465,29 @@ static void analyze_node(SemanticAnalyzer* sem, ASTNode* node) {
                 if (fsym) {
                     // Record arity so call sites can validate argument counts.
                     fsym->param_count = node->as.function_def.param_count;
+                    // Build TYPE_FUNCTION from annotations.
+                    int pc = node->as.function_def.param_count;
+                    Type** ptypes = pc > 0
+                        ? (Type**)malloc(sizeof(Type*) * pc)
+                        : NULL;
+                    for (int i = 0; i < pc; i++) {
+                        ptypes[i] = type_from_annotation(
+                            node->as.function_def.params[i].type_annotation);
+                    }
+                    Type* ret = type_from_annotation(
+                        node->as.function_def.return_type);
+                    fsym->type = type_create_function(ptypes, pc, ret);
                 }
             }
             scope_push(sem, SCOPE_FUNCTION);
             // Parameters live in the function's own scope.
             for (int i = 0; i < node->as.function_def.param_count; i++) {
-                symbol_define(sem, node->as.function_def.params[i].name,
+                Symbol* psym = symbol_define(sem, node->as.function_def.params[i].name,
                               SYM_PARAMETER, node->line, node->column);
+                if (psym) {
+                    psym->type = type_from_annotation(
+                        node->as.function_def.params[i].type_annotation);
+                }
             }
             analyze_block_body(sem, node->as.function_def.body);
             scope_pop(sem);
@@ -474,8 +497,9 @@ static void analyze_node(SemanticAnalyzer* sem, ASTNode* node) {
         scope_push(sem, SCOPE_LAMBDA);
         // Lambda parameters live in the lambda's own scope.
         for (int i = 0; i < node->as.lambda.param_count; i++) {
-            symbol_define(sem, node->as.lambda.param_names[i],
+            Symbol* lsym = symbol_define(sem, node->as.lambda.param_names[i],
                           SYM_PARAMETER, node->line, node->column);
+            if (lsym) lsym->type = type_create_primitive(TYPE_ANY);
         }
         analyze_node(sem, node->as.lambda.body);
         scope_pop(sem);
