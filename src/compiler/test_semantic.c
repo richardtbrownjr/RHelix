@@ -369,5 +369,76 @@ run_semantic_case("Real bug pattern - refactor drops a parameter (proof point)",
 
 printf("\n========== END ARITY CHECK TESTS ==========\n");
 
+printf("\n\n========== TYPE REPRESENTATION TESTS ==========\n");
+
+// ---- Literal inference ----
+// These verify type_of_literal maps literals to correct primitive types.
+
+run_semantic_case("Int literal assignment (should show [int])",
+    "x = 42\n");
+
+run_semantic_case("Float literal assignment (should show [float])",
+    "x = 3.14\n");
+
+run_semantic_case("String literal assignment (should show [str])",
+    "x = \"hello\"\n");
+
+run_semantic_case("Bool literal assignment (should show [bool])",
+    "x = True\n");
+
+run_semantic_case("None literal assignment (should show [None])",
+    "x = None\n");
+
+// ---- Simple annotations ----
+// These verify type_from_annotation converts identifier annotations
+// to the right primitive types.
+
+run_semantic_case("Function with typed params (should show [int] on each)",
+    "def add(a: int, b: int) -> int:\n"
+    "    return a + b\n");
+
+run_semantic_case("Function with mixed annotated types (str, bool, float)",
+    "def process(name: str, active: bool, ratio: float) -> str:\n"
+    "    return name\n");
+
+run_semantic_case("Function with no annotations (all params should show [any])",
+    "def untyped(a, b):\n"
+    "    return a\n");
+
+// ---- Compound annotations ----
+// These exercise type_from_annotation on subscript-shaped types.
+
+run_semantic_case("Function with List[int] param (should show [List[int]])",
+    "def process(items: List[int]):\n"
+    "    return items\n");
+
+run_semantic_case("Function with Dict[str, int] param (should show [Dict[str, any]])",
+    "def lookup(m: Dict[str, int]) -> int:\n"
+    "    return 0\n");
+
+run_semantic_case("Function with nested generic (List[Dict[str, int]])",
+    "def process(nested: List[Dict[str, int]]):\n"
+    "    return nested\n");
+
+// ---- Function type composition ----
+
+run_semantic_case("Complex function signature (proof point)",
+    "def transform(data: List[int], key: str, opts: Dict[str, bool]) -> Dict[str, int]:\n"
+    "    return {}\n");
+// Expected: transform symbol should show
+//   [(List[int], str, Dict[str, any]) -> Dict[str, any]]
+// (Dict shows [K, any] due to compound-annotation limitation.)
+
+// ---- Class methods with annotations ----
+
+run_semantic_case("Method with typed self/param (proof point)",
+    "class Calculator:\n"
+    "    def add(self, n: int) -> int:\n"
+    "        return n\n");
+// Expected: add symbol in CLASS scope should be METHOD with
+//   [(any, int) -> int]  (self is unannotated, hence any)
+
+printf("\n========== END TYPE REPRESENTATION TESTS ==========\n");
+
     return 0;
 }

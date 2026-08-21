@@ -66,8 +66,11 @@ void scope_pop(SemanticAnalyzer* sem) {
             printf("    (empty)\n");
         }
         for (Symbol* s = old->symbol_table; s; s = s->next) {
-            printf("    %-10s %s (line %d)\n",
-                   symbol_kind_to_string(s->kind), s->name, s->defined_line);
+          char* type_str = type_to_string(s->type);
+          printf("    %-10s %-15s [%s] (line %d)\n",
+               symbol_kind_to_string(s->kind), s->name,
+               type_str, s->defined_line);
+          free(type_str);
         }
     }
     // Free the symbol table before freeing the scope itself.
@@ -518,8 +521,9 @@ static void analyze_node(SemanticAnalyzer* sem, ASTNode* node) {
             }
             // Define the class in the enclosing scope.
             if (node->as.class_def.name) {
-                symbol_define(sem, node->as.class_def.name,
-                              SYM_CLASS, node->line, node->column);
+              Symbol* csym = symbol_define(sem, node->as.class_def.name,
+                        SYM_CLASS, node->line, node->column);
+              if (csym) csym->type = type_create_primitive(TYPE_ANY);
             }
             scope_push(sem, SCOPE_CLASS);
             analyze_block_body(sem, node->as.class_def.body);
