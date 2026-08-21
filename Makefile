@@ -15,8 +15,8 @@ RUNTIME_OBJS = $(BUILD_DIR)/memory_manager.o
 RUNTIME_TEST_SRC = $(RUNTIME_DIR)/test_memory.c
 
 # Compiler files
-COMPILER_SRCS = $(COMPILER_DIR)/token.c $(COMPILER_DIR)/lexer.c $(COMPILER_DIR)/ast.c $(COMPILER_DIR)/parser.c $(COMPILER_DIR)/semantic.c
-COMPILER_OBJS = $(BUILD_DIR)/token.o $(BUILD_DIR)/lexer.o $(BUILD_DIR)/ast.o $(BUILD_DIR)/parser.o $(BUILD_DIR)/semantic.o
+COMPILER_SRCS = $(COMPILER_DIR)/token.c $(COMPILER_DIR)/lexer.c $(COMPILER_DIR)/ast.c $(COMPILER_DIR)/parser.c $(COMPILER_DIR)/semantic.c $(COMPILER_DIR)/types.c
+COMPILER_OBJS = $(BUILD_DIR)/token.o $(BUILD_DIR)/lexer.o $(BUILD_DIR)/ast.o $(BUILD_DIR)/parser.o $(BUILD_DIR)/semantic.o $(BUILD_DIR)/types.o
 LEXER_TEST_SRC = $(COMPILER_DIR)/test_lexer.c
 PARSER_TEST_SRC = $(COMPILER_DIR)/test_parser.c
 SEMANTIC_TEST_SRC = $(COMPILER_DIR)/test_semantic.c
@@ -45,6 +45,9 @@ $(BUILD_DIR)/parser.o: $(COMPILER_DIR)/parser.c | $(BUILD_DIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(BUILD_DIR)/semantic.o: $(COMPILER_DIR)/semantic.c | $(BUILD_DIR)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(BUILD_DIR)/types.o: $(COMPILER_DIR)/types.c | $(BUILD_DIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 # Library targets
 runtime: $(RUNTIME_OBJS)
