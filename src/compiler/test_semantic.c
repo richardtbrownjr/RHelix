@@ -440,5 +440,98 @@ run_semantic_case("Method with typed self/param (proof point)",
 
 printf("\n========== END TYPE REPRESENTATION TESTS ==========\n");
 
+printf("\n\n========== EXPRESSION TYPE INFERENCE TESTS ==========\n");
+
+// ---- Assignment RHS inference beyond literals ----
+// These are the tests that Session 2 makes possible.
+
+run_semantic_case("Assignment from arithmetic (should show [int])",
+    "x = 2 + 3\n");
+
+run_semantic_case("Assignment from float promotion (should show [float])",
+    "x = 2 + 3.5\n");
+
+run_semantic_case("Assignment from string concat (should show [str])",
+    "x = \"hello\" + \" world\"\n");
+
+run_semantic_case("Assignment from comparison (should show [bool])",
+    "x = 5 > 3\n");
+
+run_semantic_case("Assignment from logical (should show [bool])",
+    "x = True and False\n");
+
+run_semantic_case("Assignment from annotated function call (should show [int])",
+    "def add(a: int, b: int) -> int:\n"
+    "    return a + b\n"
+    "result = add(1, 2)\n");
+// The [int] should propagate: add's declared return type is int,
+// call inherits that, x gets [int].
+
+run_semantic_case("Assignment from unannotated function call (should show [any])",
+    "def foo(a, b):\n"
+    "    return a + b\n"
+    "result = foo(1, 2)\n");
+
+run_semantic_case("Assignment from list literal (should show [List[int]])",
+    "items = [1, 2, 3]\n");
+
+run_semantic_case("Assignment from mixed list literal (should show [List[any]])",
+    "items = [1, \"two\", True]\n");
+
+run_semantic_case("Assignment from dict literal (should show [Dict[str, int]])",
+    "config = {\"port\": 8080, \"timeout\": 30}\n");
+
+// ---- Arithmetic type errors ----
+
+run_semantic_case("Int + str (should error)",
+    "x = 5 + \"hello\"\n");
+
+run_semantic_case("Str - str (should error - subtraction not defined for strings)",
+    "x = \"a\" - \"b\"\n");
+
+run_semantic_case("Unary minus on string (should error)",
+    "x = -\"hello\"\n");
+
+run_semantic_case("Bool arithmetic (should error)",
+    "x = True + False\n");
+
+// ---- Errors inside return expressions ----
+
+run_semantic_case("Type error inside return (should error)",
+    "def broken(a: int, b: str) -> int:\n"
+    "    return a + b\n");
+// The int + str error fires from inside the return expression.
+
+// ---- Nested expression inference ----
+
+run_semantic_case("Nested arithmetic (should show [float])",
+    "x = 1 + 2 * 3.14\n");
+
+run_semantic_case("Grouping doesn't change type",
+    "x = (1 + 2) * 3\n");
+
+// ---- Function call propagation ----
+
+run_semantic_case("Chained call inference (should show [int])",
+    "def double(n: int) -> int:\n"
+    "    return n + n\n"
+    "def triple(n: int) -> int:\n"
+    "    return n + n + n\n"
+    "x = double(triple(5))\n");
+// triple(5) -> int, double(int) -> int, x -> int.
+
+// ---- SESSION PROOF POINT ----
+
+run_semantic_case("Real code: typed function pipeline (proof point)",
+    "def parse(text: str) -> int:\n"
+    "    return 0\n"
+    "def format(n: int) -> str:\n"
+    "    return \"\"\n"
+    "result = format(parse(\"42\"))\n");
+// parse(str) -> int, format(int) -> str, result -> str.
+// Every step type-safe.
+
+printf("\n========== END EXPRESSION TYPE INFERENCE TESTS ==========\n");
+
     return 0;
 }
