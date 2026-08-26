@@ -126,6 +126,7 @@ def withdraw(account, amount):
 - [x] return validation — is_inside_function walks scope chain looking for SCOPE_FUNCTION or SCOPE_LAMBDA; return outside a function-like scope reports 'return outside function' error with source location
 - [x] Redeclaration warnings — `semantic_warning` infrastructure separate from `semantic_error` (non-fatal, tracked as `warning_count`); functions, methods, and classes redefined in the same scope emit warnings with previous-definition line info; variable reassignment does not warn (normal Python)
 - [x] Function call arity checking — first "type-checking-adjacent" check; Symbol now carries `param_count`; AST_CALL walker validates argument count against callee's declared arity when callee is a bare identifier resolving to SYM_FUNCTION or SYM_METHOD; skips attribute-callee, subscript-callee, and variable-held-function safely rather than false-positive
+- [x] Type representation foundation — new `types.h`/`types.c` module with `Type` struct and `TypeKind` enum (INT, FLOAT, STRING, BOOL, NONE, ANY, LIST, DICT, FUNCTION); recursive `type_from_annotation` converts AST annotations to Types (compound generics nest naturally); `type_of_literal` infers primitives from literal AST nodes; Symbol carries `Type* type` populated at all definition sites (variables, params, functions, methods, classes); debug output shows types on every symbol (`PARAMETER items [List[int]]`, `FUNCTION add [(int, int) -> int]`)
 
 ## In Progress
 
@@ -258,7 +259,8 @@ utilities.
 - ✅ Identity operators (`is`, `is not`) — mirrors `in`/`not in` at same precedence; unified handling of both two-token negation patterns; real null-check code (`if self.store is not None and key in self.store:`) parses cleanly
 - ✅ Function call arity checking — first "type-checking-adjacent" semantic check; catches the classic "refactor drops a parameter" bug at parse time via Symbol.param_count populated at function definition and checked at call sites
 - ✅ Ternary expressions (`x if cond else y`) — right-associative when chained; real safe-dictionary-lookup patterns (`return self.store[key] if key in self.store else None`) parse cleanly with ternary + `in` + subscript composing
-- 🚧 Full type checking against annotations — the remaining semantic bite; requires expression-type inference and matching against declared parameter and return type annotations
+- ✅ Type representation foundation (Session 1 of type checking) — Types are first-class in the analyzer; every Symbol carries its declared or inferred Type; annotations parse into full Type trees including nested compound generics; debug output surfaces types everywhere for verification
+- 🚧 Expression type inference (Session 2) — the next bite; walk arithmetic/comparison/call/subscript/list/dict/ternary expressions to produce their types; catch arithmetic type errors (`int + str`) at inference time
 
 ## License
 
