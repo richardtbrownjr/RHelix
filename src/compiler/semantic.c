@@ -243,6 +243,269 @@ void semantic_warning(SemanticAnalyzer* sem, int line, int column,
     fprintf(stderr, "\n");
 }
 
+// === Type inference ===
+
+// Helper: emit a type error at the given node's location. Returns TYPE_ANY
+// so the caller can chain "return type_error_here(...)".
+static Type* type_error_here(SemanticAnalyzer* sem, ASTNode* node,
+                             const char* format, ...) {
+    if (sem && node) {
+        sem->had_error = true;
+        sem->error_count++;
+        fprintf(stderr, "[semantic] line %d, col %d: ",
+                node->line, node->column);
+        va_list args;
+        va_start(args, format);
+        vfprintf(stderr, format, args);
+        va_end(args);
+        fprintf(stderr, "\n");
+    }
+    return type_create_primitive(TYPE_ANY);
+}
+
+// Helper: infer type from binary arithmetic (+ - * / %). Handles numeric
+// promotion (int + float -> float) and string concatenation (+ only).
+static Type* infer_binary_arithmetic(SemanticAnalyzer* sem, ASTNode* node,
+                                     Type* left, Type* right) {
+    TokenType op = node->as.binary.op;
+
+    // Any operand is ANY - defer decision.
+    if (left->kind == TYPE_ANY || right->kind == TYPE_ANY) {
+        return type_create_primitive(TYPE_ANY);
+    }
+
+    // String concatenation: only + supports it.
+    if (left->kind == TYPE_STRING && right->kind == TYPE_STRING) {
+        if (op == TOKEN_PLUS) return type_create_primitive(TYPE_STRING);
+        return type_error_here(sem, node,
+            "unsupported string operation '%s'", token_type_to_string(op));
+    }
+
+    // Numeric arithmetic with promotion.
+    bool l_num = (left->kind == TYPE_INT || left->kind == TYPE_FLOAT);
+    bool r_num = (right->kind == TYPE_INT || right->kind == TYPE_FLOAT);
+    if (l_num && r_num) {
+        // int + int -> int; anything with float -> float
+        if (left->kind == TYPE_FLOAT || right->kind == TYPE_FLOAT) {
+            return type_create_primitive(TYPE_FLOAT);
+        }
+        return type_create_primitive(TYPE_INT);
+    }
+
+    // Mismatch: emit error and return ANY to keep analysis going.
+    char* ls = type_to_string(left);
+    char* rs = type_to_string(right);
+    Type* err = type_error_here(sem, node,
+        "cannot apply '%s' to '%s' and '%s'",
+        token_type_to_string(op), ls, rs);
+    free(ls);
+    free(rs);
+    return err;
+}
+
+Type* type_of_expression(SemanticAnalyzer* sem, ASTNode* node) {
+    if (!node) return type_create_primitive(TYPE_ANY);
+
+    switch (node->type) {
+        // === Literals delegate to type_of_literal ===
+        case AST_LITERAL_INT:
+        case AST_LITERAL_FLOAT:
+        case AST_LITERAL_STRING:
+        case AST_LITERAL_BOOL:
+        case AST_LITERAL_NONE: {
+            Type* t = type_of_literal(node);
+            return t ? t : type_create_primitive(TYPE_ANY);
+        }
+
+        // === Identifier: look up symbol, clone its type ===
+        case AST_IDENTIFIER: {
+            Symbol* s = symbol_lookup(sem, node->as.identifier.name);
+            if (s && s->type) return type_clone(s->type);
+            return type_create_primitive(TYPE_ANY);
+        }
+
+        // === Grouping: recurse ===
+        case AST_GROUPING:
+            return type_of_expression(sem, node->as.grouping.expression);
+
+        // === Unary ===
+        case AST_UNARY: {
+            TokenType op = node->as.unary.op;
+            Type* operand = type_of_expression(sem, node->as.unary.operand);
+            // 'not' always yields bool.
+            if (op == TOKEN_NOT) {
+                type_destroy(operand);
+                return type_create_primitive(TYPE_BOOL);
+            }
+            // Unary +/-: valid on int/float only.
+            if (op == TOKEN_MINUS || op == TOKEN_PLUS) {
+                if (operand->kind == TYPE_ANY) return operand;
+                if (operand->kind == TYPE_INT || operand->kind == TYPE_FLOAT) {
+                    return operand;
+                }
+                char* os = type_to_string(operand);
+                Type* err = type_error_here(sem, node,
+                    "unary '%s' not supported for type '%s'",
+                    token_type_to_string(op), os);
+                free(os);
+                type_destroy(operand);
+                return err;
+            }
+            type_destroy(operand);
+            return type_create_primitive(TYPE_ANY);
+        }
+
+        // === Binary ===
+        case AST_BINARY: {
+            TokenType op = node->as.binary.op;
+            Type* left = type_of_expression(sem, node->as.binary.left);
+            Type* right = type_of_expression(sem, node->as.binary.right);
+
+            // Comparisons always yield bool (regardless of operand types).
+            if (op == TOKEN_LESS || op == TOKEN_GREATER ||
+                op == TOKEN_LESS_EQUALS || op == TOKEN_GREATER_EQUALS ||
+                op == TOKEN_EQUALS_EQUALS || op == TOKEN_NOT_EQUALS) {
+                type_destroy(left);
+                type_destroy(right);
+                return type_create_primitive(TYPE_BOOL);
+            }
+            // Logical, membership, identity all yield bool.
+            if (op == TOKEN_AND || op == TOKEN_OR ||
+                op == TOKEN_IN || op == TOKEN_IS) {
+                type_destroy(left);
+                type_destroy(right);
+                return type_create_primitive(TYPE_BOOL);
+            }
+            // Pipeline: type is the return type of the callee (right side).
+            if (op == TOKEN_PIPELINE) {
+                Type* result = (right->kind == TYPE_FUNCTION && right->return_type)
+                    ? type_clone(right->return_type)
+                    : type_create_primitive(TYPE_ANY);
+                type_destroy(left);
+                type_destroy(right);
+                return result;
+            }
+            // Arithmetic: delegate to helper.
+            Type* result = infer_binary_arithmetic(sem, node, left, right);
+            type_destroy(left);
+            type_destroy(right);
+            return result;
+        }
+
+        // === Function call ===
+        case AST_CALL: {
+            // If callee resolves to a function/method with known return type,
+            // that's our type. Otherwise ANY.
+            ASTNode* callee = node->as.call.callee;
+            if (callee && callee->type == AST_IDENTIFIER) {
+                Symbol* s = symbol_lookup(sem, callee->as.identifier.name);
+                if (s && s->type && s->type->kind == TYPE_FUNCTION &&
+                    s->type->return_type) {
+                    return type_clone(s->type->return_type);
+                }
+            }
+            return type_create_primitive(TYPE_ANY);
+        }
+
+        // === Subscript ===
+        case AST_SUBSCRIPT: {
+            Type* obj = type_of_expression(sem, node->as.subscript.object);
+            Type* result;
+            if (obj->kind == TYPE_LIST && obj->element_type) {
+                result = type_clone(obj->element_type);
+            } else if (obj->kind == TYPE_DICT && obj->element_type) {
+                result = type_clone(obj->element_type);
+            } else {
+                result = type_create_primitive(TYPE_ANY);
+            }
+            type_destroy(obj);
+            return result;
+        }
+
+        // === Attribute ===
+        case AST_ATTRIBUTE:
+            // We don't track instance attributes yet - defer to ANY.
+            return type_create_primitive(TYPE_ANY);
+
+        // === Ternary: same-type else ANY ===
+        case AST_TERNARY: {
+            Type* then_t = type_of_expression(sem, node->as.ternary.then_expr);
+            Type* else_t = type_of_expression(sem, node->as.ternary.else_expr);
+            // We don't type the condition - it's expected to be truthy-ish.
+            Type* result = type_equals(then_t, else_t)
+                ? type_clone(then_t)
+                : type_create_primitive(TYPE_ANY);
+            type_destroy(then_t);
+            type_destroy(else_t);
+            return result;
+        }
+
+        // === Collection literals ===
+        case AST_LIST_LITERAL: {
+            int count = node->as.list_literal.count;
+            if (count == 0) {
+                return type_create_list(type_create_primitive(TYPE_ANY));
+            }
+            Type* first = type_of_expression(sem,
+                node->as.list_literal.elements[0]);
+            bool consistent = true;
+            for (int i = 1; i < count; i++) {
+                Type* t = type_of_expression(sem,
+                    node->as.list_literal.elements[i]);
+                if (!type_equals(first, t)) consistent = false;
+                type_destroy(t);
+            }
+            if (consistent) return type_create_list(first);
+            type_destroy(first);
+            return type_create_list(type_create_primitive(TYPE_ANY));
+        }
+        case AST_DICT_LITERAL: {
+            int count = node->as.dict_literal.count;
+            if (count == 0) {
+                return type_create_dict(
+                    type_create_primitive(TYPE_ANY),
+                    type_create_primitive(TYPE_ANY));
+            }
+            Type* first_k = type_of_expression(sem,
+                node->as.dict_literal.entries[0].key);
+            Type* first_v = type_of_expression(sem,
+                node->as.dict_literal.entries[0].value);
+            bool k_consistent = true, v_consistent = true;
+            for (int i = 1; i < count; i++) {
+                Type* k = type_of_expression(sem,
+                    node->as.dict_literal.entries[i].key);
+                Type* v = type_of_expression(sem,
+                    node->as.dict_literal.entries[i].value);
+                if (!type_equals(first_k, k)) k_consistent = false;
+                if (!type_equals(first_v, v)) v_consistent = false;
+                type_destroy(k);
+                type_destroy(v);
+            }
+            Type* result_k = k_consistent ? first_k : type_create_primitive(TYPE_ANY);
+            Type* result_v = v_consistent ? first_v : type_create_primitive(TYPE_ANY);
+            if (!k_consistent) type_destroy(first_k);
+            if (!v_consistent) type_destroy(first_v);
+            return type_create_dict(result_k, result_v);
+        }
+
+        // === Lambda: TYPE_FUNCTION with ANY params, inferred body return ===
+        case AST_LAMBDA: {
+            int pc = node->as.lambda.param_count;
+            Type** ptypes = pc > 0
+                ? (Type**)malloc(sizeof(Type*) * pc)
+                : NULL;
+            for (int i = 0; i < pc; i++) {
+                ptypes[i] = type_create_primitive(TYPE_ANY);
+            }
+            Type* ret = type_of_expression(sem, node->as.lambda.body);
+            return type_create_function(ptypes, pc, ret);
+        }
+
+        default:
+            return type_create_primitive(TYPE_ANY);
+    }
+}
+
 
 // === AST walker ===
 //

@@ -132,3 +132,14 @@ void semantic_warning(SemanticAnalyzer* sem, int line, int column,
                       const char* format, ...);
 
 #endif
+
+// === Type inference ===
+
+// Walk an expression AST and return its inferred type. Returns a fresh Type
+// owned by the caller. Emits type errors for invalid operations (arithmetic
+// on incompatible types, unary minus on non-numeric, etc.) at the point of
+// discovery, then returns TYPE_ANY to let analysis continue.
+//
+// Never returns NULL - failure to infer produces TYPE_ANY, not NULL, so
+// callers can compose without null-checking at every step.
+Type* type_of_expression(SemanticAnalyzer* sem, ASTNode* node);
