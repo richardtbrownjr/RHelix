@@ -14,6 +14,8 @@
 #ifndef RHELIX_TYPES_H
 #define RHELIX_TYPES_H
 
+#include <stdbool.h>
+
 typedef enum {
     TYPE_ANY,      // Unknown or unresolved - the "escape hatch"
     TYPE_INT,      // Integer literals, arithmetic on ints
@@ -82,6 +84,19 @@ Type* type_of_literal(struct ASTNode* node);
 // Return a heap-allocated string representation of the type, suitable for
 // printing. Caller must free() the returned string.
 // Examples: "int", "List[int]", "Dict[str, int]", "(int, str) -> bool"
+// === Cloning and comparison ===
+
+// Deep-copy a Type. All owned sub-types are cloned recursively. Returns
+// NULL if input is NULL. Caller owns the returned Type.
+Type* type_clone(Type* type);
+
+// Structural equality of two types. Kinds must match and compound children
+// must recursively equal. NULL types are equal to NULL, unequal to any
+// non-NULL. TYPE_ANY equals TYPE_ANY (the caller decides whether ANY should
+// be treated as a wildcard match; type_equals is strict).
+bool type_equals(Type* a, Type* b);
+
 char* type_to_string(Type* type);
+
 
 #endif // RHELIX_TYPES_H

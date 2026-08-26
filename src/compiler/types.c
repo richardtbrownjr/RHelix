@@ -145,6 +145,62 @@ static char* str_append(char* dest, const char* src) {
     return new_dest;
 }
 
+// === Cloning and comparison ===
+
+Type* type_clone(Type* type) {
+    if (!type) return NULL;
+
+    // Create a new primitive of the same kind, then deep-copy compound
+    // fields as needed. Using type_create_primitive as the base avoids
+    // duplicating field-init logic.
+    Type* copy = type_create_primitive(type->kind);
+    if (!copy) return NULL;
+
+    // Compound sub-types: recursive clone.
+    copy->element_type = type_clone(type->element_type);
+    copy->key_type = type_clone(type->key_type);
+    copy->return_type = type_clone(type->return_type);
+
+    // Function parameter array: deep-copy each param type.
+    if (type->param_count > 0 && type->param_types) {
+        copy->param_types = (Type**)malloc(sizeof(Type*) * type->param_count);
+        copy->param_count = type->param_count;
+        for (int i = 0; i < type->param_count; i++) {
+            copy->param_types[i] = type_clone(type->param_types[i]);
+        }
+    }
+
+    return copy;
+}
+
+bool type_equals(Type* a, Type* b) {
+    // Both NULL: equal. One NULL: unequal.
+    if (a == b) return true;
+    if (!a || !b) return false;
+
+    if (a->kind != b->kind) return false;
+
+    // For compound types, recursively compare children.
+    switch (a->kind) {
+        case TYPE_LIST:
+            return type_equals(a->element_type, b->element_type);
+        case TYPE_DICT:
+            return type_equals(a->key_type, b->key_type) &&
+                   type_equals(a->element_type, b->element_type);
+        case TYPE_FUNCTION:
+            if (a->param_count != b->param_count) return false;
+            for (int i = 0; i < a->param_count; i++) {
+                if (!type_equals(a->param_types[i], b->param_types[i])) {
+                    return false;
+                }
+            }
+            return type_equals(a->return_type, b->return_type);
+        default:
+            // Primitives: kind match already confirmed above.
+            return true;
+    }
+}
+
 char* type_to_string(Type* type) {
     if (!type) return strdup("<null>");
 
