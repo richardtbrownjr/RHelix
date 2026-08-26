@@ -127,6 +127,7 @@ def withdraw(account, amount):
 - [x] Redeclaration warnings — `semantic_warning` infrastructure separate from `semantic_error` (non-fatal, tracked as `warning_count`); functions, methods, and classes redefined in the same scope emit warnings with previous-definition line info; variable reassignment does not warn (normal Python)
 - [x] Function call arity checking — first "type-checking-adjacent" check; Symbol now carries `param_count`; AST_CALL walker validates argument count against callee's declared arity when callee is a bare identifier resolving to SYM_FUNCTION or SYM_METHOD; skips attribute-callee, subscript-callee, and variable-held-function safely rather than false-positive
 - [x] Type representation foundation — new `types.h`/`types.c` module with `Type` struct and `TypeKind` enum (INT, FLOAT, STRING, BOOL, NONE, ANY, LIST, DICT, FUNCTION); recursive `type_from_annotation` converts AST annotations to Types (compound generics nest naturally); `type_of_literal` infers primitives from literal AST nodes; Symbol carries `Type* type` populated at all definition sites (variables, params, functions, methods, classes); debug output shows types on every symbol (`PARAMETER items [List[int]]`, `FUNCTION add [(int, int) -> int]`)
+- [x] Expression type inference — `type_of_expression` walks any expression AST and returns a fresh Type; propagates types through arithmetic (with int→float promotion and string concat), comparisons and logical ops (bool), function calls (callee's return type), subscripts (List's element or Dict's value), collection literals (consistent element type or ANY), ternaries (same-type or ANY), lambdas (function type with ANY params); emits type errors at inference time for invalid arithmetic (`int + str`, `-"hello"`); ownership: every returned Type is a clone the caller frees, no dangling pointers when scopes pop
 
 ## In Progress
 
@@ -260,7 +261,8 @@ utilities.
 - ✅ Function call arity checking — first "type-checking-adjacent" semantic check; catches the classic "refactor drops a parameter" bug at parse time via Symbol.param_count populated at function definition and checked at call sites
 - ✅ Ternary expressions (`x if cond else y`) — right-associative when chained; real safe-dictionary-lookup patterns (`return self.store[key] if key in self.store else None`) parse cleanly with ternary + `in` + subscript composing
 - ✅ Type representation foundation (Session 1 of type checking) — Types are first-class in the analyzer; every Symbol carries its declared or inferred Type; annotations parse into full Type trees including nested compound generics; debug output surfaces types everywhere for verification
-- 🚧 Expression type inference (Session 2) — the next bite; walk arithmetic/comparison/call/subscript/list/dict/ternary expressions to produce their types; catch arithmetic type errors (`int + str`) at inference time
+- ✅ Expression type inference (Session 2 of type checking) — every expression can now be typed; arithmetic errors fire at the point of discovery; types propagate through calls (`result = format(parse("42"))` correctly infers `[str]` end-to-end); collection literals get their element types (`[1,2,3]` → `List[int]`); foundation for Sessions 3-4 which compare inferred vs declared types
+- 🚧 Assignment type checking (Session 3) — compare inferred RHS type against declared LHS type at every assignment site; catch `x: int = "hello"` and similar mismatches; small session since the infrastructure is now all in place
 
 ## License
 
