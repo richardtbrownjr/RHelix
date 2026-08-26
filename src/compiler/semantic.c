@@ -639,8 +639,10 @@ static void analyze_node(SemanticAnalyzer* sem, ASTNode* node) {
                 node->line, node->column);
           if (asym) {
               // Infer type from RHS literal if possible; otherwise ANY.
-              Type* rhs_type = type_of_literal(node->as.assignment.value);
-              asym->type = rhs_type ? rhs_type : type_create_primitive(TYPE_ANY);
+              // Full expression type inference: literals produce their
+              // primitive types, arithmetic promotes, function calls
+              // return their declared return types, etc.
+              asym->type = type_of_expression(sem, node->as.assignment.value);
           }
           }
             analyze_node(sem, node->as.assignment.target);
@@ -660,6 +662,12 @@ static void analyze_node(SemanticAnalyzer* sem, ASTNode* node) {
             }
             if (node->as.ret.value) {
                 analyze_node(sem, node->as.ret.value);
+                // Infer the return value's type. For today this only serves
+                // to fire arithmetic errors inside the return expression;
+                // Session 4 will compare against the function's declared
+                // return type.
+                Type* rt = type_of_expression(sem, node->as.ret.value);
+                type_destroy(rt);
             }
             break;
 
