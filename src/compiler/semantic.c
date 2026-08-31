@@ -627,27 +627,59 @@ static void analyze_node(SemanticAnalyzer* sem, ASTNode* node) {
         case AST_EXPRESSION_STMT:
             analyze_node(sem, node->as.expression_stmt.expression);
             break;
-        case AST_ASSIGNMENT:
-          // If the assignment target is a plain identifier, this is a
-          // variable definition. Attribute and subscript targets don't
-          // define new names - they mutate existing objects.
-          if (node->as.assignment.target &&
-              node->as.assignment.target->type == AST_IDENTIFIER) {
-                Symbol* asym = symbol_define(sem,
-                node->as.assignment.target->as.identifier.name,
-                SYM_VARIABLE,
-                node->line, node->column);
-          if (asym) {
-              // Infer type from RHS literal if possible; otherwise ANY.
-              // Full expression type inference: literals produce their
-              // primitive types, arithmetic promotes, function calls
-              // return their declared return types, etc.
-              asym->type = type_of_expression(sem, node->as.assignment.value);
+      case AST_ASSIGNMENT: {
+      // Assignment to a plain identifier is either a definition
+      // (first use in this scope) or a rebind (name already exists).
+      // Attribute and subscript targets don't define new names.
+      if (node->as.assignment.target &&
+          node->as.assignment.target->type == AST_IDENTIFIER) {
+
+          const char* name = node->as.assignment.target->as.identifier.name;
+          Symbol* existing = symbol_lookup_local(sem, name);
+          Type* rhs_type = type_of_expression(sem, node->as.assignment.value);
+
+          if (existing) {
+              // Rebind. If existing has a declared type (non-ANY),
+              // check that the new value is compatible. ANY on
+              // either side is treated as wildcard.
+              if (existing->type &&
+                  existing->type->kind != TYPE_ANY &&
+                  rhs_type->kind != TYPE_ANY &&
+                  !type_equals(existing->type, rhs_type)) {
+                  char* lhs_str = type_to_string(existing->type);
+                  char* rhs_str = type_to_string(rhs_type);
+                  semantic_error(sem, node->line, node->column,
+                      "cannot assign '%s' to '%s' of type '%s'",
+                      rhs_str, name, lhs_str);
+                  free(lhs_str);
+                  free(rhs_str);
+              }
+              // Rebind does NOT change the symbol's declared type.
+              type_destroy(rhs_type);
+          } else {
+              // First use: define and set the inferred type.
+              Symbol* asym = symbol_define(sem, name, SYM_VARIABLE,
+                                           node->line, node->column);
+              if (asym) {
+                  asym->type = rhs_type;
+              } else {
+                  type_destroy(rhs_type);
+              }
           }
-          }
-            analyze_node(sem, node->as.assignment.target);
-            analyze_node(sem, node->as.assignment.value);
-            break;
+      } else {
+          // Non-identifier target: still walk value for name resolution.
+          analyze_node(sem, node->as.assignment.value);
+      }
+      analyze_node(sem, node->as.assignment.target);
+      // Note: for the identifier case we already walked value implicitly
+      // via type_of_expression, but a redundant walk is safe (name
+      // resolution is idempotent) and keeps the code simple.
+      if (node->as.assignment.target &&
+          node->as.assignment.target->type == AST_IDENTIFIER) {
+          analyze_node(sem, node->as.assignment.value);
+      }
+      break;
+    }
         case AST_AUGMENTED_ASSIGNMENT:
           // Augmented assignment does NOT define - target must already
           // exist. Walking the target will trigger name resolution and
