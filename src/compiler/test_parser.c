@@ -1027,5 +1027,57 @@ int main(void) {
        "    def lookup(self, key):\n"
        "        return self.store[key] if key in self.store else None\n");
 
+
+       printf("\n\n========== ASSERT STATEMENT TESTS ==========\n");
+
+       // ---- Basic assert ----
+       test_module_case("Bare assert",
+           "assert True\n");
+
+       test_module_case("Assert with identifier",
+           "assert cond\n");
+
+       test_module_case("Assert with comparison",
+           "assert x > 0\n");
+
+       test_module_case("Assert with message string",
+           "assert x > 0, \"x must be positive\"\n");
+
+       test_module_case("Assert with logical expression",
+           "assert x > 0 and x < 100\n");
+
+       // ---- Assert in function body ----
+       test_module_case("Assert inside function",
+           "def process(items):\n"
+           "    assert items\n"
+           "    return items\n");
+
+       test_module_case("Assert with typed message inside function",
+           "def divide(a, b):\n"
+           "    assert b != 0, \"cannot divide by zero\"\n"
+           "    return a / b\n");
+
+       // ---- Assert with call in condition ----
+       test_module_case("Assert with function call",
+           "def valid(x):\n"
+           "    return True\n"
+           "assert valid(x)\n");
+
+       // ---- Assert with membership ----
+       test_module_case("Assert with membership check",
+           "assert user in allowed_users\n");
+
+       // ---- SESSION PROOF POINT ----
+       test_module_case("Real precondition pattern (proof point)",
+           "def calculate(rate: float, term: int) -> float:\n"
+           "    assert rate > 0.0, \"rate must be positive\"\n"
+           "    assert term > 0, \"term must be positive\"\n"
+           "    return rate\n");
+       // Standard function-precondition pattern using assert with
+       // typed params and message expressions. Everything composes:
+       // typed params + assert + comparisons + string message + return.
+
+       printf("\n========== END ASSERT STATEMENT TESTS ==========\n");
+       
     return 0;
 }
