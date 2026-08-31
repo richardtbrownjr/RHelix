@@ -27,6 +27,7 @@ typedef enum {
     AST_ASSIGNMENT,
     AST_AUGMENTED_ASSIGNMENT,
     AST_RETURN,
+    AST_ASSERT,
     AST_PASS,
     AST_BREAK,
     AST_CONTINUE,
@@ -126,6 +127,15 @@ typedef struct {
 typedef struct {
     ASTNode* value;
 } ASTReturn;
+
+// Assert statement: 'assert condition' or 'assert condition, message'.
+// Message is an optional expression evaluated only when the assertion
+// fails at runtime (semantics are code-gen's problem; for now the AST
+// just carries both expressions).
+typedef struct {
+    ASTNode* condition;
+    ASTNode* message;  // NULL when no message provided
+} ASTAssert;
 
 // AST_PASS has no payload - it is a tag-only node
 
@@ -239,6 +249,7 @@ struct ASTNode {
         ASTAssignment assignment;
         ASTAugmentedAssignment augmented_assignment;
         ASTReturn ret;
+        ASTAssert assert_stmt;
         ASTBlock block;
         ASTIf if_stmt;
         ASTWhile while_stmt;
@@ -281,6 +292,7 @@ ASTNode* ast_assignment(ASTNode* target, ASTNode* value, int line, int column);
 ASTNode* ast_augmented_assignment(ASTNode* target, ASTNode* value, TokenType op,
                                   int line, int column);
 ASTNode* ast_return(ASTNode* value, int line, int column);
+ASTNode* ast_assert(ASTNode* condition, ASTNode* message, int line, int column);
 ASTNode* ast_pass(int line, int column);
 ASTNode* ast_break(int line, int column);
 ASTNode* ast_continue(int line, int column);

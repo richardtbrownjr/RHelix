@@ -24,6 +24,7 @@ static Keyword keywords[] = {
     {"for", TOKEN_FOR},
     {"in", TOKEN_IN},
     {"is", TOKEN_IS},
+    {"assert", TOKEN_ASSERT},
     {"and", TOKEN_AND},
     {"or", TOKEN_OR},
     {"not", TOKEN_NOT},

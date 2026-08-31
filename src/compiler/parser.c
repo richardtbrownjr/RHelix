@@ -102,6 +102,7 @@ static ASTNode* primary(Parser* parser);
 static ASTNode* statement(Parser* parser);
 static ASTNode* return_statement(Parser* parser);
 static ASTNode* pass_statement(Parser* parser);
+static ASTNode* assert_statement(Parser* parser);
 static ASTNode* break_statement(Parser* parser);
 static ASTNode* continue_statement(Parser* parser);
 static ASTNode* assignment_statement(Parser* parser);
@@ -587,6 +588,7 @@ static ASTNode* statement(Parser* parser) {
     if (check(parser, TOKEN_WITH))   return with_statement(parser);
     if (check(parser, TOKEN_RETURN)) return return_statement(parser);
     if (check(parser, TOKEN_PASS))   return pass_statement(parser);
+    if (check(parser, TOKEN_ASSERT)) return assert_statement(parser);
     if (check(parser, TOKEN_BREAK))    return break_statement(parser);
     if (check(parser, TOKEN_CONTINUE)) return continue_statement(parser);
 
@@ -605,6 +607,25 @@ static ASTNode* return_statement(Parser* parser) {
     return ast_return(value, return_token->line, return_token->column);
 }
 
+// assert_statement -> "assert" expression ( "," expression )? NEWLINE?
+static ASTNode* assert_statement(Parser* parser) {
+    Token* assert_token = advance(parser);  // consume 'assert'
+    ASTNode* condition = expression(parser);
+    if (!condition) return NULL;
+
+    ASTNode* message = NULL;
+    if (check(parser, TOKEN_COMMA)) {
+        advance(parser);  // consume ','
+        message = expression(parser);
+        if (!message) {
+            ast_destroy(condition);
+            return NULL;
+        }
+    }
+    match(parser, TOKEN_NEWLINE);
+    return ast_assert(condition, message,
+                      assert_token->line, assert_token->column);
+}
 // pass_statement -> "pass" NEWLINE?
 static ASTNode* pass_statement(Parser* parser) {
     Token* pass_token = advance(parser);

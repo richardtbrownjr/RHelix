@@ -705,6 +705,17 @@ static void analyze_node(SemanticAnalyzer* sem, ASTNode* node) {
             }
             break;
 
+          case AST_ASSERT:
+              // Assert doesn't create scope. Walk condition (triggers name
+              // resolution and arithmetic type checks inside it) and message
+              // if present. Runtime semantics (raise AssertionError when
+              // condition is false) are code-gen's problem.
+              analyze_node(sem, node->as.assert_stmt.condition);
+              if (node->as.assert_stmt.message) {
+                analyze_node(sem, node->as.assert_stmt.message);
+              }
+              break;
+
         // Scope-creating constructs. Push scope, walk children, pop scope.
 
         case AST_IF:

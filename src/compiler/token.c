@@ -47,6 +47,7 @@ const char* token_type_to_string(TokenType type) {
         case TOKEN_FOR: return "FOR";
         case TOKEN_IN: return "IN";
         case TOKEN_IS: return "IS";
+        case TOKEN_ASSERT: return "ASSERT";
         case TOKEN_AND: return "AND";
         case TOKEN_OR: return "OR";
         case TOKEN_NOT: return "NOT";

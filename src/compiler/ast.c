@@ -191,6 +191,14 @@ ASTNode* ast_return(ASTNode* value, int line, int column) {
     return node;
 }
 
+ASTNode* ast_assert(ASTNode* condition, ASTNode* message, int line, int column) {
+    ASTNode* node = make_node(AST_ASSERT, line, column);
+    if (!node) return NULL;
+    node->as.assert_stmt.condition = condition;
+    node->as.assert_stmt.message = message;
+    return node;
+}
+
 ASTNode* ast_pass(int line, int column) {
     return make_node(AST_PASS, line, column);
 }
@@ -467,6 +475,12 @@ void ast_destroy(ASTNode* node) {
         case AST_RETURN:
             if (node->as.ret.value) ast_destroy(node->as.ret.value);
             break;
+        case AST_ASSERT:
+            ast_destroy(node->as.assert_stmt.condition);
+            if (node->as.assert_stmt.message) {
+            ast_destroy(node->as.assert_stmt.message);
+            }
+            break;
         case AST_BLOCK:
             for (int i = 0; i < node->as.block.count; i++) {
                 ast_destroy(node->as.block.statements[i]);
@@ -567,6 +581,7 @@ const char* ast_node_type_to_string(ASTNodeType type) {
         case AST_ASSIGNMENT: return "Assignment";
         case AST_AUGMENTED_ASSIGNMENT: return "AugmentedAssignment";
         case AST_RETURN: return "Return";
+        case AST_ASSERT: return "Assert";
         case AST_PASS: return "Pass";
         case AST_LAMBDA: return "Lambda";
         case AST_TERNARY: return "Ternary";
@@ -698,6 +713,17 @@ void ast_print(ASTNode* node, int indent) {
                 ast_print(node->as.ret.value, indent + 1);
             } else {
                 printf("Return(bare)\n");
+            }
+            break;
+        case AST_ASSERT:
+            printf("Assert\n");
+            print_indent(indent + 1);
+            printf("Condition:\n");
+            ast_print(node->as.assert_stmt.condition, indent + 2);
+            if (node->as.assert_stmt.message) {
+                print_indent(indent + 1);
+                printf("Message:\n");
+                ast_print(node->as.assert_stmt.message, indent + 2);
             }
             break;
         case AST_PASS:

@@ -21,6 +21,7 @@ typedef enum {
     TOKEN_FOR,
     TOKEN_IN,
     TOKEN_IS,
+    TOKEN_ASSERT,
     TOKEN_AND,
     TOKEN_OR,
     TOKEN_NOT,
