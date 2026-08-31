@@ -92,6 +92,7 @@ def withdraw(account, amount):
 - [x] Pipeline operator (`|>`) with left-associative chaining (`data |> clean |> transform`)
 - [x] Lambda expressions — unparenthesized single-param (`x => body`) and parenthesized multi-param (`(x, y) => body`)
 - [x] `pass` statement for empty bodies
+- [x] `assert` statement — `assert condition` or `assert condition, message`; new AST_ASSERT node with condition and optional message expression; walker recurses into both for name resolution and type inference; runtime semantics (raising on false condition) deferred to code generation
 - [x] Function declarations (`def`) with parameter and return type annotations
 - [x] Compound type annotations (`List[int]`, `Dict[str, int]`, nested forms) via subscript reuse
 - [x] Class declarations with method bodies
@@ -128,6 +129,7 @@ def withdraw(account, amount):
 - [x] Function call arity checking — first "type-checking-adjacent" check; Symbol now carries `param_count`; AST_CALL walker validates argument count against callee's declared arity when callee is a bare identifier resolving to SYM_FUNCTION or SYM_METHOD; skips attribute-callee, subscript-callee, and variable-held-function safely rather than false-positive
 - [x] Type representation foundation — new `types.h`/`types.c` module with `Type` struct and `TypeKind` enum (INT, FLOAT, STRING, BOOL, NONE, ANY, LIST, DICT, FUNCTION); recursive `type_from_annotation` converts AST annotations to Types (compound generics nest naturally); `type_of_literal` infers primitives from literal AST nodes; Symbol carries `Type* type` populated at all definition sites (variables, params, functions, methods, classes); debug output shows types on every symbol (`PARAMETER items [List[int]]`, `FUNCTION add [(int, int) -> int]`)
 - [x] Expression type inference — `type_of_expression` walks any expression AST and returns a fresh Type; propagates types through arithmetic (with int→float promotion and string concat), comparisons and logical ops (bool), function calls (callee's return type), subscripts (List's element or Dict's value), collection literals (consistent element type or ANY), ternaries (same-type or ANY), lambdas (function type with ANY params); emits type errors at inference time for invalid arithmetic (`int + str`, `-"hello"`); ownership: every returned Type is a clone the caller frees, no dangling pointers when scopes pop
+- [x] Assignment type checking — new `type_declared` bit on Symbol distinguishes annotation-declared types (create contracts) from inferred or placeholder types (allow flexible reassignment); AST_ASSIGNMENT rebind path compares RHS type against existing declared type via `type_equals`; ANY on either side is wildcarded to prevent double-errors on undefined names; declared type wins over subsequent assignments (rebind never mutates the symbol's declared type); catches `def foo(x: int): x = "hello"` and similar annotation-violating patterns
 
 ## In Progress
 
@@ -262,7 +264,9 @@ utilities.
 - ✅ Ternary expressions (`x if cond else y`) — right-associative when chained; real safe-dictionary-lookup patterns (`return self.store[key] if key in self.store else None`) parse cleanly with ternary + `in` + subscript composing
 - ✅ Type representation foundation (Session 1 of type checking) — Types are first-class in the analyzer; every Symbol carries its declared or inferred Type; annotations parse into full Type trees including nested compound generics; debug output surfaces types everywhere for verification
 - ✅ Expression type inference (Session 2 of type checking) — every expression can now be typed; arithmetic errors fire at the point of discovery; types propagate through calls (`result = format(parse("42"))` correctly infers `[str]` end-to-end); collection literals get their element types (`[1,2,3]` → `List[int]`); foundation for Sessions 3-4 which compare inferred vs declared types
-- 🚧 Assignment type checking (Session 3) — compare inferred RHS type against declared LHS type at every assignment site; catch `x: int = "hello"` and similar mismatches; small session since the infrastructure is now all in place
+- ✅ Assignment type checking (Session 3 of type checking) — annotation contracts are now enforced; typed parameter reassigned to wrong-type value emits `[semantic] cannot assign 'X' to 'name' of type 'Y'`; `type_declared` bit separates declared contracts from inferred types (module-level `x = 5; x = "hello"` stays permissive); real proof point catches refactor-changes-annotation bug where old debug string assignment now fails
+- ✅ `assert` statement — new AST_ASSERT node parses `assert condition` and `assert condition, message`; semantic walker recurses for name resolution and type inference; realistic function-precondition pattern (`assert rate > 0.0, "rate must be positive"`) parses cleanly with typed params and message expressions composing
+- 🚧 Return type checking (Session 4 of type checking) — compare inferred return expression type against function's declared return type; final piece of the type checking phase before code generation begins
 
 ## License
 
