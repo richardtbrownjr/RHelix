@@ -130,6 +130,7 @@ Symbol* symbol_define(SemanticAnalyzer* sem, const char* name, SymbolKind kind,
     sym->defined_column = column;
     sym->param_count = -1;  // Default: not applicable; set for SYM_FUNCTION/METHOD in walker
     sym->type = NULL;  // Type populated by walker after symbol_define returns
+    sym->type_declared = false;  // Walker sets true when populating from annotation
 
     // Prepend to the current scope's symbol table. Prepending is O(1) and
     // gives us the "newer symbols shadow older ones" behavior for free
@@ -643,6 +644,7 @@ static void analyze_node(SemanticAnalyzer* sem, ASTNode* node) {
               // check that the new value is compatible. ANY on
               // either side is treated as wildcard.
               if (existing->type &&
+                  existing->type_declared &&
                   existing->type->kind != TYPE_ANY &&
                   rhs_type->kind != TYPE_ANY &&
                   !type_equals(existing->type, rhs_type)) {
@@ -783,6 +785,7 @@ static void analyze_node(SemanticAnalyzer* sem, ASTNode* node) {
                     Type* ret = type_from_annotation(
                         node->as.function_def.return_type);
                     fsym->type = type_create_function(ptypes, pc, ret);
+                    fsym->type_declared = true;
                 }
             }
             scope_push(sem, SCOPE_FUNCTION);
@@ -790,10 +793,11 @@ static void analyze_node(SemanticAnalyzer* sem, ASTNode* node) {
             for (int i = 0; i < node->as.function_def.param_count; i++) {
                 Symbol* psym = symbol_define(sem, node->as.function_def.params[i].name,
                               SYM_PARAMETER, node->line, node->column);
-                if (psym) {
-                    psym->type = type_from_annotation(
-                        node->as.function_def.params[i].type_annotation);
-                }
+                  if (psym) {
+                    ASTNode* ann = node->as.function_def.params[i].type_annotation;
+                    psym->type = type_from_annotation(ann);
+                    psym->type_declared = (ann != NULL);
+              }
             }
             analyze_block_body(sem, node->as.function_def.body);
             scope_pop(sem);

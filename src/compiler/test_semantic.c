@@ -533,5 +533,76 @@ run_semantic_case("Real code: typed function pipeline (proof point)",
 
 printf("\n========== END EXPRESSION TYPE INFERENCE TESTS ==========\n");
 
+printf("\n\n========== ASSIGNMENT TYPE CHECKING TESTS ==========\n");
+
+// ---- Cases that SHOULD PASS ----
+
+run_semantic_case("Typed param reassigned to same type (should pass)",
+    "def foo(x: int):\n"
+    "    x = 5\n");
+
+run_semantic_case("Typed param reassigned to unknown (should pass - ANY wildcard)",
+    "def foo(x: int, y):\n"
+    "    x = y\n");
+// y is untyped (ANY), so reassignment is permitted.
+
+run_semantic_case("Untyped param reassigned (should pass)",
+    "def foo(x, y):\n"
+    "    x = y\n");
+
+run_semantic_case("Module-level variable retype (should pass - no declared type)",
+    "x = 5\n"
+    "x = \"hello\"\n");
+// Module-level variables have no declared type, so reassignment
+// to any type is legal. Matches Python's dynamic behavior.
+
+run_semantic_case("Typed param reassigned to matching call result (should pass)",
+    "def make_int() -> int:\n"
+    "    return 42\n"
+    "def use(x: int):\n"
+    "    x = make_int()\n");
+
+// ---- Cases that SHOULD ERROR ----
+
+run_semantic_case("Typed int param reassigned to string (should error)",
+    "def foo(x: int):\n"
+    "    x = \"hello\"\n");
+
+run_semantic_case("Typed str param reassigned to int (should error)",
+    "def format(name: str):\n"
+    "    name = 42\n");
+
+run_semantic_case("Typed float param reassigned to bool (should error)",
+    "def calc(ratio: float):\n"
+    "    ratio = True\n");
+
+run_semantic_case("Typed param reassigned to wrong call result (should error)",
+    "def make_str() -> str:\n"
+    "    return \"hello\"\n"
+    "def use(x: int):\n"
+    "    x = make_str()\n");
+
+// ---- Compound type reassignment ----
+
+run_semantic_case("Typed List[int] param reassigned to matching list (should pass)",
+    "def process(items: List[int]):\n"
+    "    items = [1, 2, 3]\n");
+
+run_semantic_case("Typed List[int] param reassigned to wrong list (should error)",
+    "def process(items: List[int]):\n"
+    "    items = [\"a\", \"b\"]\n");
+
+// ---- SESSION PROOF POINT ----
+
+run_semantic_case("Real bug pattern - refactor changes annotation (proof point)",
+    "def calculate(rate: float) -> float:\n"
+    "    rate = \"5%\"\n"
+    "    return 0.0\n");
+// The classic "someone changed rate: int to rate: float but forgot
+// to remove a temp string reassignment from an old debug session"
+// bug. Caught at parse time.
+
+printf("\n========== END ASSIGNMENT TYPE CHECKING TESTS ==========\n");
+
     return 0;
 }

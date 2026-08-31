@@ -47,6 +47,7 @@ typedef struct Symbol {
     struct Symbol* next;     // Next symbol in the same scope's table
     int param_count;         // Number of declared params (SYM_FUNCTION/METHOD only, -1 otherwise)
     Type* type;              // Inferred or declared type of this symbol (owned)
+    bool type_declared;      // true if type came from an annotation, false if inferred/placeholder
 } Symbol;
 
 typedef struct Scope {
