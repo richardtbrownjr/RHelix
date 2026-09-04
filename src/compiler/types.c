@@ -178,6 +178,18 @@ bool type_equals(Type* a, Type* b) {
     if (a == b) return true;
     if (!a || !b) return false;
 
+    // Empty collection compatibility: an empty list literal is compatible
+    // with any list type, and an empty dict literal is compatible with any
+    // dict type. This resolves the corner case where 'def foo() -> List[int]:
+    // return []' would otherwise emit a false-positive type mismatch.
+    if ((a->kind == TYPE_EMPTY_LIST && b->kind == TYPE_LIST) ||
+        (b->kind == TYPE_EMPTY_LIST && a->kind == TYPE_LIST)) {
+        return true;
+    }
+    if ((a->kind == TYPE_EMPTY_DICT && b->kind == TYPE_DICT) ||
+        (b->kind == TYPE_EMPTY_DICT && a->kind == TYPE_DICT)) {
+        return true;
+    }
     if (a->kind != b->kind) return false;
 
     // For compound types, recursively compare children.
@@ -219,6 +231,7 @@ char* type_to_string(Type* type) {
             free(inner);
             return result;
         }
+        case TYPE_EMPTY_LIST: return strdup("List[]");
         case TYPE_DICT: {
             char* k = type_to_string(type->key_type);
             char* v = type_to_string(type->element_type);
@@ -231,6 +244,7 @@ char* type_to_string(Type* type) {
             free(v);
             return result;
         }
+        case TYPE_EMPTY_DICT: return strdup("Dict[]");
         case TYPE_FUNCTION: {
             char* result = str_append(NULL, "(");
             for (int i = 0; i < type->param_count; i++) {

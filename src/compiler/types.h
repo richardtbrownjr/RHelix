@@ -24,7 +24,9 @@ typedef enum {
     TYPE_BOOL,     // Boolean literals and comparison results
     TYPE_NONE,     // None literal, void-return functions
     TYPE_LIST,     // Parameterized: element_type is the element type
+    TYPE_EMPTY_LIST,  // Empty list literal []; matches any LIST in type_equals
     TYPE_DICT,     // Parameterized: key_type is the key, element_type is the value
+    TYPE_EMPTY_DICT,  // Empty dict literal {}; matches any DICT in type_equals
     TYPE_FUNCTION  // Parameterized: param_types + return_type
 } TypeKind;
 

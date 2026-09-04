@@ -212,6 +212,18 @@ const char* symbol_kind_to_string(SymbolKind kind) {
         return false;
     }
 
+    // current_function_return_type - Walks the scope chain outward and
+    // returns the function_return_type of the nearest SCOPE_FUNCTION.
+    // Returns NULL if we're not inside a function. Note: SCOPE_LAMBDA
+    // is intentionally NOT matched here - lambdas have no annotation
+    // syntax, so return type checking doesn't apply to their bodies.
+    static Type* current_function_return_type(SemanticAnalyzer* sem) {
+        if (!sem) return NULL;
+        for (Scope* s = sem->current_scope; s; s = s->parent) {
+            if (s->kind == SCOPE_FUNCTION) return s->function_return_type;
+        }
+        return NULL;
+    }
     // === Error reporting ===
 
 void semantic_error(SemanticAnalyzer* sem, int line, int column,
@@ -447,7 +459,7 @@ Type* type_of_expression(SemanticAnalyzer* sem, ASTNode* node) {
         case AST_LIST_LITERAL: {
             int count = node->as.list_literal.count;
             if (count == 0) {
-                return type_create_list(type_create_primitive(TYPE_ANY));
+                return type_create_primitive(TYPE_EMPTY_LIST);
             }
             Type* first = type_of_expression(sem,
                 node->as.list_literal.elements[0]);
@@ -465,9 +477,7 @@ Type* type_of_expression(SemanticAnalyzer* sem, ASTNode* node) {
         case AST_DICT_LITERAL: {
             int count = node->as.dict_literal.count;
             if (count == 0) {
-                return type_create_dict(
-                    type_create_primitive(TYPE_ANY),
-                    type_create_primitive(TYPE_ANY));
+                return type_create_primitive(TYPE_EMPTY_DICT);
             }
             Type* first_k = type_of_expression(sem,
                 node->as.dict_literal.entries[0].key);
@@ -691,21 +701,48 @@ static void analyze_node(SemanticAnalyzer* sem, ASTNode* node) {
           analyze_node(sem, node->as.augmented_assignment.target);
           analyze_node(sem, node->as.augmented_assignment.value);
           break;
-        case AST_RETURN:
-            if (!is_inside_function(sem)) {
-                semantic_error(sem, node->line, node->column,
-                               "'return' outside function");
-            }
-            if (node->as.ret.value) {
-                analyze_node(sem, node->as.ret.value);
-                // Infer the return value's type. For today this only serves
-                // to fire arithmetic errors inside the return expression;
-                // Session 4 will compare against the function's declared
-                // return type.
-                Type* rt = type_of_expression(sem, node->as.ret.value);
-                type_destroy(rt);
-            }
-            break;
+      case AST_RETURN: {
+          if (!is_inside_function(sem)) {
+              semantic_error(sem, node->line, node->column,
+                             "'return' outside function");
+              break;
+          }
+          // Compare inferred return value type against enclosing
+          // function's declared return type.
+          Type* declared = current_function_return_type(sem);
+
+          if (node->as.ret.value) {
+              analyze_node(sem, node->as.ret.value);
+              Type* inferred = type_of_expression(sem, node->as.ret.value);
+
+              // Check only when both sides are non-ANY (wildcard rule
+              // same as Session 3 assignment checks).
+              if (declared && declared->kind != TYPE_ANY &&
+                  inferred->kind != TYPE_ANY &&
+                  !type_equals(declared, inferred)) {
+                  char* d_str = type_to_string(declared);
+                  char* i_str = type_to_string(inferred);
+                  semantic_error(sem, node->line, node->column,
+                      "returned '%s' from function declared to return '%s'",
+                      i_str, d_str);
+                  free(d_str);
+                  free(i_str);
+              }
+              type_destroy(inferred);
+          } else {
+              // Bare 'return' - returns implicit None. Check against
+              // declared return type: NONE and ANY are both OK.
+              if (declared && declared->kind != TYPE_ANY &&
+                  declared->kind != TYPE_NONE) {
+                  char* d_str = type_to_string(declared);
+                  semantic_error(sem, node->line, node->column,
+                      "bare 'return' from function declared to return '%s'",
+                      d_str);
+                  free(d_str);
+              }
+          }
+          break;
+        }
 
           case AST_ASSERT:
               // Assert doesn't create scope. Walk condition (triggers name
