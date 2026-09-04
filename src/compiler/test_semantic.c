@@ -604,5 +604,112 @@ run_semantic_case("Real bug pattern - refactor changes annotation (proof point)"
 
 printf("\n========== END ASSIGNMENT TYPE CHECKING TESTS ==========\n");
 
+printf("\n\n========== RETURN TYPE CHECKING TESTS ==========\n");
+
+// ---- Cases that SHOULD PASS ----
+
+run_semantic_case("Return int from int-declared function (should pass)",
+    "def get_five() -> int:\n"
+    "    return 5\n");
+
+run_semantic_case("Return str from str-declared function (should pass)",
+    "def greet() -> str:\n"
+    "    return \"hello\"\n");
+
+run_semantic_case("Return bool from bool-declared function (should pass)",
+    "def is_valid() -> bool:\n"
+    "    return True\n");
+
+run_semantic_case("Return None from None-declared function (should pass)",
+    "def do_nothing() -> None:\n"
+    "    return None\n");
+
+run_semantic_case("Bare return from None-declared function (should pass)",
+    "def do_nothing() -> None:\n"
+    "    return\n");
+
+run_semantic_case("Bare return from unannotated function (should pass)",
+    "def helper():\n"
+    "    return\n");
+
+run_semantic_case("Return int from unannotated function (should pass - ANY wildcard)",
+    "def helper():\n"
+    "    return 5\n");
+
+run_semantic_case("Return from typed function with call result (should pass)",
+    "def make_int() -> int:\n"
+    "    return 42\n"
+    "def use() -> int:\n"
+    "    return make_int()\n");
+
+run_semantic_case("Return computed expression matching type (should pass)",
+    "def add(a: int, b: int) -> int:\n"
+    "    return a + b\n");
+
+run_semantic_case("Return empty list from typed function (should pass - empty compat)",
+    "def get_items() -> List[int]:\n"
+    "    return []\n");
+
+run_semantic_case("Return empty dict from typed function (should pass - empty compat)",
+    "def get_config() -> Dict[str, int]:\n"
+    "    return {}\n");
+
+// ---- Cases that SHOULD ERROR ----
+
+run_semantic_case("Return str from int-declared function (should error)",
+    "def get_number() -> int:\n"
+    "    return \"five\"\n");
+
+run_semantic_case("Return int from str-declared function (should error)",
+    "def get_greeting() -> str:\n"
+    "    return 42\n");
+
+run_semantic_case("Return bool from float-declared function (should error)",
+    "def get_ratio() -> float:\n"
+    "    return True\n");
+
+run_semantic_case("Bare return from int-declared function (should error)",
+    "def get_number() -> int:\n"
+    "    return\n");
+
+run_semantic_case("Return int from None-declared function (should error)",
+    "def do_nothing() -> None:\n"
+    "    return 5\n");
+
+run_semantic_case("Return wrong call result (should error)",
+    "def make_str() -> str:\n"
+    "    return \"hello\"\n"
+    "def use() -> int:\n"
+    "    return make_str()\n");
+
+// ---- Nested functions ----
+
+run_semantic_case("Nested functions with different return types (should pass)",
+    "def outer() -> int:\n"
+    "    def inner() -> str:\n"
+    "        return \"hello\"\n"
+    "    return 42\n");
+// Inner's return checks against inner's str declaration.
+// Outer's return checks against outer's int declaration.
+// Both are valid.
+
+run_semantic_case("Nested function inner return mismatch (should error)",
+    "def outer() -> int:\n"
+    "    def inner() -> str:\n"
+    "        return 42\n"
+    "    return 0\n");
+// Only inner's return is wrong. Outer's is correct.
+
+// ---- SESSION PROOF POINT ----
+
+run_semantic_case("Real refactor bug - return type changed but body didn't (proof point)",
+    "def calculate_tax(income: float) -> str:\n"
+    "    return income * 0.15\n");
+// Someone changed the return type from float to str during a
+// refactor but forgot to update the return expression. Caught
+// at parse time before the ClassCastException happens at runtime.
+
+printf("\n========== END RETURN TYPE CHECKING TESTS ==========\n");
+
     return 0;
 }

@@ -930,9 +930,9 @@ static ASTNode* with_statement(Parser* parser) {
 //
 // Returns NULL on error and sets parser->had_error.
 static ASTNode* parse_type_annotation(Parser* parser) {
-    if (!check(parser, TOKEN_IDENTIFIER)) {
-        parser_error(parser, "Expected type name");
-        return NULL;
+      if (!check(parser, TOKEN_IDENTIFIER) && !check(parser, TOKEN_NONE)) {
+      parser_error(parser, "Expected type name");
+      return NULL;
     }
     Token* base_tok = advance(parser);
     ASTNode* type = ast_identifier(base_tok->lexeme,
