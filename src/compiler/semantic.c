@@ -802,6 +802,17 @@ static void analyze_node(SemanticAnalyzer* sem, ASTNode* node) {
                 }
             }
             scope_push(sem, SCOPE_FUNCTION);
+            // Populate the pushed scope's return_type with a clone of the
+            // declared return annotation. Session 4 uses this to check
+            // AST_RETURN statements against the enclosing function's
+            // return type. Cloning is necessary because fsym owns 'ret'
+            // now, and both fsym->type and the scope need independently-
+            // owned copies (freed on scope_pop and symbol destruction
+            // respectively).
+            if (sem->current_scope) {
+                sem->current_scope->function_return_type =
+                    type_from_annotation(node->as.function_def.return_type);
+            }
             // Parameters live in the function's own scope.
             for (int i = 0; i < node->as.function_def.param_count; i++) {
                 Symbol* psym = symbol_define(sem, node->as.function_def.params[i].name,
