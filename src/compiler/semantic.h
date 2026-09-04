@@ -55,6 +55,8 @@ typedef struct Scope {
     struct Scope* parent;  // NULL only for the module scope
     int depth;             // 0 for module, increments with each push
     Symbol* symbol_table;  // Head of the linked list of symbols in this scope
+    Type* function_return_type;  // For SCOPE_FUNCTION only: the declared return type (owned). NULL for other scope kinds.
+
 } Scope;
 
 // SemanticAnalyzer holds all state that persists across the entire analysis

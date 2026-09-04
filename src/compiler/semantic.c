@@ -49,6 +49,7 @@ void scope_push(SemanticAnalyzer* sem, ScopeKind kind) {
     scope->parent = sem->current_scope;
     scope->depth = sem->current_scope ? sem->current_scope->depth + 1 : 0;
     scope->symbol_table = NULL;  // Empty table on scope creation
+    scope->function_return_type = NULL;  // Only set by AST_FUNCTION_DEF walker after push
     sem->current_scope = scope;
     if (scope->depth > sem->max_depth_reached) {
         sem->max_depth_reached = scope->depth;
@@ -82,7 +83,8 @@ void scope_pop(SemanticAnalyzer* sem) {
         free(sym);
         sym = next;
     }
-    sem->current_scope = old->parent;
+        type_destroy(old->function_return_type);
+        sem->current_scope = old->parent;
     free(old);
 }
 
