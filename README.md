@@ -57,6 +57,7 @@ def withdraw(account, amount):
 ### Runtime
 - [x] Reference-counted memory manager with cycle detection
 - [x] Arena allocator primitives
+- [x] Value representation — new `value.h`/`value.c` module with `Value` tagged union and `ValueKind` enum (NONE, BOOL, INT, FLOAT, STRING); constructors for each variant, destructor freeing owned string buffers, `value_to_string` debug printer, `value_equals` for structural comparison; foundation for the tree-walking interpreter — every literal will produce a Value, every expression will evaluate to a Value, every variable will store a Value
 
 ### Lexer
 - [x] Full Python-style indentation tracking (INDENT/DEDENT emission)
@@ -270,7 +271,9 @@ utilities.
 - ✅ `assert` statement — new AST_ASSERT node parses `assert condition` and `assert condition, message`; semantic walker recurses for name resolution and type inference; realistic function-precondition pattern (`assert rate > 0.0, "rate must be positive"`) parses cleanly with typed params and message expressions composing
 - ✅ Return type checking (Session 4 of type checking) — **type checking phase complete**; return-site errors like `returned 'str' from function declared to return 'int'` fire correctly; bare `return` checked against declared return type; nested functions work independently; empty collections properly compatible with any typed slot
 - ✅ Empty collection compatibility — TYPE_EMPTY_LIST and TYPE_EMPTY_DICT distinguish empty literals from heterogeneous collections; empty `{}` and `[]` now satisfy any typed slot they're placed in
-- 🚧 Code generation — the biggest remaining phase; transforms RHelix from "type-aware syntax checker" into a language that actually runs programs. Multiple sub-phases planned: tree-walking interpreter first (fastest path to runnable code), then bytecode VM (optional speed), then performance primitives (@arena, @parallel — the design thesis)
+- ✅ Value representation (Session 1 of interpreter phase) — runtime Values are first-class; VAL_NONE/BOOL/INT/FLOAT/STRING with constructors, destructor, debug printer, equality; 33 tests all passing; clean runtime/compiler separation (Types are compile-time in types.c, Values are runtime in value.c)
+- 🚧 Expression evaluation (Session 2 of interpreter phase) — first "code actually runs" milestone; `evaluate(ASTNode*) → Value` walks the AST at runtime; literals become Values, arithmetic actually computes, comparisons return real bools
+
 
 ## License
 
