@@ -10,8 +10,8 @@ RUNTIME_DIR = $(SRC_DIR)/runtime
 COMPILER_DIR = $(SRC_DIR)/compiler
 
 # Runtime files
-RUNTIME_SRCS = $(RUNTIME_DIR)/memory_manager.c
-RUNTIME_OBJS = $(BUILD_DIR)/memory_manager.o
+RUNTIME_SRCS = $(RUNTIME_DIR)/memory_manager.c $(RUNTIME_DIR)/value.c
+RUNTIME_OBJS = $(BUILD_DIR)/memory_manager.o  $(BUILD_DIR)/value.o
 RUNTIME_TEST_SRC = $(RUNTIME_DIR)/test_memory.c
 
 # Compiler files
@@ -30,6 +30,8 @@ $(BUILD_DIR):
 
 # Object file rules
 $(BUILD_DIR)/memory_manager.o: $(RUNTIME_DIR)/memory_manager.c | $(BUILD_DIR)
+	$(CC) $(CFLAGS) -c $< -o $@
+$(BUILD_DIR)/value.o: $(RUNTIME_DIR)/value.c | $(BUILD_DIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(BUILD_DIR)/token.o: $(COMPILER_DIR)/token.c | $(BUILD_DIR)
