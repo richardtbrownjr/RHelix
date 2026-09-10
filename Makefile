@@ -21,6 +21,7 @@ LEXER_TEST_SRC = $(COMPILER_DIR)/test_lexer.c
 PARSER_TEST_SRC = $(COMPILER_DIR)/test_parser.c
 SEMANTIC_TEST_SRC = $(COMPILER_DIR)/test_semantic.c
 
+
 .PHONY: all clean test test-lexer test-parser test-semantic runtime compiler
 
 all: runtime compiler
@@ -76,3 +77,7 @@ test-parser: | $(BUILD_DIR)
 test-semantic: | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(COMPILER_SRCS) $(SEMANTIC_TEST_SRC) -o $(BUILD_DIR)/test_semantic
 	./$(BUILD_DIR)/test_semantic
+
+test-value: | $(BUILD_DIR)
+	$(CC) $(CFLAGS) $(RUNTIME_SRCS) $(RUNTIME_DIR)/test_value.c -o $(BUILD_DIR)/test_value
+	./$(BUILD_DIR)/test_value
