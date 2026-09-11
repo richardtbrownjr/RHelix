@@ -84,3 +84,7 @@ test-semantic: | $(BUILD_DIR)
 test-value: | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(RUNTIME_SRCS) $(RUNTIME_DIR)/test_value.c -o $(BUILD_DIR)/test_value
 	./$(BUILD_DIR)/test_value
+
+test-evaluator: | $(BUILD_DIR)
+	$(CC) $(CFLAGS) $(RUNTIME_SRCS) $(COMPILER_SRCS) $(RUNTIME_DIR)/test_evaluator.c -o $(BUILD_DIR)/test_evaluator
+	./$(BUILD_DIR)/test_evaluator
