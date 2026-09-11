@@ -58,6 +58,7 @@ def withdraw(account, amount):
 - [x] Reference-counted memory manager with cycle detection
 - [x] Arena allocator primitives
 - [x] Value representation — new `value.h`/`value.c` module with `Value` tagged union and `ValueKind` enum (NONE, BOOL, INT, FLOAT, STRING); constructors for each variant, destructor freeing owned string buffers, `value_to_string` debug printer, `value_equals` for structural comparison; foundation for the tree-walking interpreter — every literal will produce a Value, every expression will evaluate to a Value, every variable will store a Value
+- [x] Expression evaluation — new `evaluator.h`/`evaluator.c` module with tree-walking `evaluate(ASTNode*) → Value`; handles all expression forms (literals, arithmetic with numeric promotion, string concatenation, comparisons, short-circuit logical `and`/`or`, unary `not`/`-`/`+`, grouping, ternary); runtime errors (division by zero, unsupported ops) print to stderr and return `VAL_NONE`; ownership discipline: every temporary Value destroyed before returning, no string leaks
 
 ### Lexer
 - [x] Full Python-style indentation tracking (INDENT/DEDENT emission)
@@ -272,7 +273,8 @@ utilities.
 - ✅ Return type checking (Session 4 of type checking) — **type checking phase complete**; return-site errors like `returned 'str' from function declared to return 'int'` fire correctly; bare `return` checked against declared return type; nested functions work independently; empty collections properly compatible with any typed slot
 - ✅ Empty collection compatibility — TYPE_EMPTY_LIST and TYPE_EMPTY_DICT distinguish empty literals from heterogeneous collections; empty `{}` and `[]` now satisfy any typed slot they're placed in
 - ✅ Value representation (Session 1 of interpreter phase) — runtime Values are first-class; VAL_NONE/BOOL/INT/FLOAT/STRING with constructors, destructor, debug printer, equality; 33 tests all passing; clean runtime/compiler separation (Types are compile-time in types.c, Values are runtime in value.c)
-- 🚧 Expression evaluation (Session 2 of interpreter phase) — first "code actually runs" milestone; `evaluate(ASTNode*) → Value` walks the AST at runtime; literals become Values, arithmetic actually computes, comparisons return real bools
+- ✅ Expression evaluation (Session 2 of interpreter phase) — **RHelix runs code**; `evaluate(ASTNode*)` walks any expression AST and produces a Value; `2 + 3` actually computes to `5`, `(2 + 3) * 4` to `20`, `"hello " + "world"` to `"hello world"`, short-circuit logical works correctly, ternary evaluates only the selected branch; 28 tests all passing; runtime errors emit diagnostics without crashing
+- 🚧 Statement evaluation and environments (Session 3 of interpreter phase) — introduces `Environment` for variable storage; AST_ASSIGNMENT actually binds values, AST_IF and AST_WHILE actually control flow; foundation for functions in Session 4
 
 
 ## License
