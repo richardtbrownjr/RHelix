@@ -91,6 +91,10 @@ test-value: | $(BUILD_DIR)
 test-evaluator: | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(RUNTIME_SRCS) $(COMPILER_SRCS) $(RUNTIME_DIR)/test_evaluator.c -o $(BUILD_DIR)/test_evaluator
 	./$(BUILD_DIR)/test_evaluator
+	
+test-environment: | $(BUILD_DIR)
+	$(CC) $(CFLAGS) $(RUNTIME_SRCS) $(RUNTIME_DIR)/test_environment.c -o $(BUILD_DIR)/test_environment
+	./$(BUILD_DIR)/test_environment
 
 rhelix: | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(RUNTIME_SRCS) $(COMPILER_SRCS) $(RUNTIME_DIR)/rhelix.c -o $(BUILD_DIR)/rhelix
