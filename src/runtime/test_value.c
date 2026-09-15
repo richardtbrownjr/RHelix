@@ -91,6 +91,28 @@ int main(void) {
     check("int 42 != float 42",           !value_equals(value_int(42), value_float(42.0)));
     check("None != false",                !value_equals(value_none(), value_bool(false)));
 
+    // ---- Clone ----
+    printf("\nClone:\n");
+    Value orig_int = value_int(42);
+    Value cloned_int = value_clone(orig_int);
+    check("clone of int has same value",
+          cloned_int.kind == VAL_INT && cloned_int.as.i == 42);
+
+    Value orig_str = value_string("original");
+    Value cloned_str = value_clone(orig_str);
+    check("clone of string has same content",
+          cloned_str.kind == VAL_STRING &&
+          strcmp(cloned_str.as.string.chars, "original") == 0);
+    check("clone of string has independent buffer",
+          cloned_str.as.string.chars != orig_str.as.string.chars);
+
+    // Destroy the original - clone should still be valid
+    value_destroy(&orig_str);
+    check("clone survives original's destruction",
+          cloned_str.as.string.chars != NULL &&
+          strcmp(cloned_str.as.string.chars, "original") == 0);
+    value_destroy(&cloned_str);
+    
     // ---- Destruction ----
     printf("\nDestruction:\n");
     // Destroy primitive: no-op, but should not crash.

@@ -70,4 +70,14 @@ char* value_to_string(Value value);
 
 bool value_equals(Value a, Value b);
 
+// === Clone ===
+// Returns a deep copy of a Value. For primitives this is a struct
+// copy. For VAL_STRING this duplicates the char buffer so the clone
+// and original have independent ownership. Used when we need to
+// return a Value the caller will own, but the source is owned by
+// somewhere else (e.g., env_get returns a pointer into env storage;
+// we clone before returning to the evaluator's caller).
+
+Value value_clone(Value source);
+
 #endif // RHELIX_VALUE_H

@@ -126,3 +126,38 @@ bool value_equals(Value a, Value b) {
             return false;
     }
 }
+
+// === Clone ===
+
+Value value_clone(Value source) {
+    switch (source.kind) {
+        case VAL_NONE:
+        case VAL_BOOL:
+        case VAL_INT:
+        case VAL_FLOAT:
+            // Primitives: struct copy is sufficient, nothing owned.
+            return source;
+        case VAL_STRING: {
+            // Duplicate the char buffer for independent ownership.
+            Value copy;
+            copy.kind = VAL_STRING;
+            copy.as.string.length = source.as.string.length;
+            if (source.as.string.chars && source.as.string.length > 0) {
+                copy.as.string.chars = (char*)malloc(source.as.string.length + 1);
+                if (copy.as.string.chars) {
+                    memcpy(copy.as.string.chars,
+                           source.as.string.chars,
+                           source.as.string.length + 1);
+                } else {
+                    copy.as.string.length = 0;
+                }
+            } else {
+                copy.as.string.chars = NULL;
+            }
+            return copy;
+        }
+        default:
+            // Unknown kinds return None (safe fallback).
+            return value_none();
+    }
+}
