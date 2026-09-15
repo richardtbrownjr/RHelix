@@ -1,24 +1,29 @@
 // rhelix.c - REPL and future main entry point for RHelix
 //
-// Currently: interactive expression evaluator.
+// After Session 3b: variables persist across REPL lines.
 //   $ ./build/rhelix
-//   rhelix> 2 + 3
-//   5
-//   rhelix> (10 + 5) * 2
-//   30
+//   rhelix> x = 5
+//   rhelix> x + 1
+//   6
 //   rhelix> exit
 //
-// Reads one line at a time from stdin, lexes and parses it as an
-// expression, evaluates it, prints the result. Exits on EOF (Ctrl+D)
-// or when the user types 'exit' or 'quit'.
+// Reads one line at a time from stdin, parses via parser_parse_module
+// (which handles statements AND expressions - the parser wraps bare
+// expressions in AST_EXPRESSION_STMT nodes), and evaluates against a
+// persistent global Environment.
 //
-// Scope for the expression-only REPL:
-// - Every expression form the evaluator supports works here
-// - Assignment, statements, control flow: NOT yet (Session 3+)
-// - Multi-line input: NOT yet
-// - Line history / arrow keys: NOT yet (no readline dependency)
+// REPL semantic: if a line is a single expression statement, its
+// value is printed. Assignment and other statements execute silently.
+//
+// Scope after Session 3b:
+// - Assignment: x = 5
+// - Variable lookup: x + 1
+// - If statements: if x > 0: y = 1
+// - All expression forms from Session 2
+// - Deferred: while/for loops, functions, classes
 
 #include "value.h"
+#include "environment.h"
 #include "evaluator.h"
 #include "../compiler/lexer.h"
 #include "../compiler/parser.h"
@@ -32,9 +37,8 @@
 static char* read_line(void) {
     static char buffer[1024];
     if (!fgets(buffer, sizeof(buffer), stdin)) {
-        return NULL;  // EOF or read error
+        return NULL;
     }
-    // Strip trailing newline
     size_t len = strlen(buffer);
     if (len > 0 && buffer[len - 1] == '\n') {
         buffer[len - 1] = '\0';
@@ -42,7 +46,6 @@ static char* read_line(void) {
     return strdup(buffer);
 }
 
-// True if the line is empty or contains only whitespace.
 static bool is_blank(const char* line) {
     if (!line) return true;
     for (const char* p = line; *p; p++) {
@@ -51,14 +54,21 @@ static bool is_blank(const char* line) {
     return true;
 }
 
-// True if the user typed an exit command.
 static bool is_exit_command(const char* line) {
     return strcmp(line, "exit") == 0 || strcmp(line, "quit") == 0;
 }
 
 int main(void) {
-    printf("RHelix REPL — expression evaluator\n");
-    printf("Type expressions like '2 + 3' or 'quit' to exit.\n\n");
+    printf("RHelix REPL — statements + expressions\n");
+    printf("Try: x = 5   then   x + 1\n");
+    printf("Type 'exit' to quit.\n\n");
+
+    // Persistent global environment - survives across REPL lines.
+    Environment* global = env_create(NULL);
+    if (!global) {
+        fprintf(stderr, "error: could not create global environment\n");
+        return 1;
+    }
 
     while (1) {
         printf("rhelix> ");
@@ -66,25 +76,22 @@ int main(void) {
 
         char* line = read_line();
 
-        // EOF (Ctrl+D)
         if (!line) {
             printf("\n");
             break;
         }
 
-        // Skip blank lines
         if (is_blank(line)) {
             free(line);
             continue;
         }
 
-        // Exit commands
         if (is_exit_command(line)) {
             free(line);
             break;
         }
 
-        // Tokenize the line
+        // Tokenize
         int token_count = 0;
         Token** tokens = lexer_tokenize(line, &token_count);
         if (!tokens) {
@@ -93,52 +100,60 @@ int main(void) {
             continue;
         }
 
-        // Create parser from tokens
+        // Parse as module (handles statements AND bare expressions)
         Parser* parser = parser_create(tokens, token_count);
         if (!parser) {
             fprintf(stderr, "error: could not create parser\n");
-            // Free tokens
-            for (int i = 0; i < token_count; i++) {
-                free(tokens[i]);
-            }
+            for (int i = 0; i < token_count; i++) free(tokens[i]);
             free(tokens);
             free(line);
             continue;
         }
 
-        // Parse as expression
-        ASTNode* expr = parser_parse_expression(parser);
+        ASTNode* module = parser_parse_module(parser);
 
-        if (!expr) {
-            // Error already printed by parser
+        if (!module) {
             parser_destroy(parser);
-            for (int i = 0; i < token_count; i++) {
-                free(tokens[i]);
-            }
+            for (int i = 0; i < token_count; i++) free(tokens[i]);
             free(tokens);
             free(line);
             continue;
         }
 
-        // Evaluate
-        Value result = evaluate(expr);
+        // Evaluate the module against the persistent global env.
+        // evaluate_statement on a module iterates its statements and
+        // returns the last statement's value (Python REPL semantic).
+        Value result = evaluate_statement(module, global);
 
-        // Print result
-        char* str = value_to_string(result);
-        printf("%s\n", str);
-        free(str);
+        // If the last statement was an expression statement, print
+        // the result. Otherwise (assignment, if, etc.), suppress.
+        //
+        // We detect "last was expression statement" by checking the
+        // module's last child directly.
+        bool print_result = false;
+        if (module->type == AST_MODULE && module->as.module.count > 0) {
+            ASTNode* last = module->as.module.statements[module->as.module.count - 1];
+            if (last && last->type == AST_EXPRESSION_STMT) {
+                print_result = true;
+            }
+        }
+
+        if (print_result && result.kind != VAL_NONE) {
+            char* str = value_to_string(result);
+            printf("%s\n", str);
+            free(str);
+        }
 
         // Clean up
         value_destroy(&result);
-        ast_destroy(expr);
+        ast_destroy(module);
         parser_destroy(parser);
-        for (int i = 0; i < token_count; i++) {
-            free(tokens[i]);
-        }
+        for (int i = 0; i < token_count; i++) free(tokens[i]);
         free(tokens);
         free(line);
     }
 
+    env_destroy(global);
     printf("Goodbye.\n");
     return 0;
 }
