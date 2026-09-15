@@ -24,11 +24,20 @@
 #define RHELIX_EVALUATOR_H
 
 #include "value.h"
+#include "environment.h"
 #include "../compiler/ast.h"
+
 
 // Evaluate an expression AST node and return the computed Value.
 // Never returns NULL - errors produce VAL_NONE with an error printed
 // to stderr.
-Value evaluate(ASTNode* node);
+Value evaluate(ASTNode* node, Environment* env);
+
+// Evaluate a statement AST node. Executes for side effects.
+// Returns the wrapped expression's Value for AST_EXPRESSION_STMT
+// (so REPL callers can print it), the last statement's value for
+// AST_MODULE and AST_BLOCK (Python REPL semantic), VAL_NONE otherwise.
+Value evaluate_statement(ASTNode* node, Environment* env);
+
 
 #endif // RHELIX_EVALUATOR_H

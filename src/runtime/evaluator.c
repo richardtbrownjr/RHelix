@@ -90,7 +90,6 @@ static Value eval_arithmetic(ASTNode* node, Value left, Value right) {
                 return value_float(l / r);
             case TOKEN_PERCENT:
                 if (r == 0.0) return runtime_error(node, "modulo by zero");
-                // fmod behavior for float % float
                 return value_float(l - r * ((long long)(l / r)));
             default: return runtime_error(node, "unsupported arithmetic op");
         }
@@ -118,7 +117,6 @@ static Value eval_arithmetic(ASTNode* node, Value left, Value right) {
 static Value eval_comparison(ASTNode* node, Value left, Value right) {
     TokenType op = node->as.binary.op;
 
-    // Numeric comparison (with promotion)
     if (is_numeric(left) && is_numeric(right)) {
         double l = to_double(left);
         double r = to_double(right);
@@ -133,14 +131,12 @@ static Value eval_comparison(ASTNode* node, Value left, Value right) {
         }
     }
 
-    // String comparison (equality only, using value_equals)
     if (left.kind == VAL_STRING && right.kind == VAL_STRING) {
         if (op == TOKEN_EQUALS_EQUALS) return value_bool(value_equals(left, right));
         if (op == TOKEN_NOT_EQUALS)    return value_bool(!value_equals(left, right));
         return runtime_error(node, "cannot order strings with <, >, <=, >=");
     }
 
-    // Cross-type equality: always false (or true for !=).
     if (op == TOKEN_EQUALS_EQUALS) return value_bool(value_equals(left, right));
     if (op == TOKEN_NOT_EQUALS)    return value_bool(!value_equals(left, right));
 
@@ -148,22 +144,20 @@ static Value eval_comparison(ASTNode* node, Value left, Value right) {
 }
 
 // === Binary logical (short-circuit) ===
-// Note: these are handled specially because they short-circuit -
-// the right side is only evaluated if needed.
 
-static Value eval_logical(ASTNode* node) {
+static Value eval_logical(ASTNode* node, Environment* env) {
     TokenType op = node->as.binary.op;
-    Value left = evaluate(node->as.binary.left);
+    Value left = evaluate(node->as.binary.left, env);
 
     if (op == TOKEN_AND) {
         if (!is_truthy(left)) return left;  // Short-circuit
         value_destroy(&left);
-        return evaluate(node->as.binary.right);
+        return evaluate(node->as.binary.right, env);
     }
     if (op == TOKEN_OR) {
         if (is_truthy(left)) return left;   // Short-circuit
         value_destroy(&left);
-        return evaluate(node->as.binary.right);
+        return evaluate(node->as.binary.right, env);
     }
     value_destroy(&left);
     return runtime_error(node, "unsupported logical op");
@@ -171,9 +165,9 @@ static Value eval_logical(ASTNode* node) {
 
 // === Unary ===
 
-static Value eval_unary(ASTNode* node) {
+static Value eval_unary(ASTNode* node, Environment* env) {
     TokenType op = node->as.unary.op;
-    Value operand = evaluate(node->as.unary.operand);
+    Value operand = evaluate(node->as.unary.operand, env);
 
     if (op == TOKEN_NOT) {
         bool result = !is_truthy(operand);
@@ -197,7 +191,6 @@ static Value eval_unary(ASTNode* node) {
     }
 
     if (op == TOKEN_PLUS) {
-        // Unary plus: return operand unchanged (for numeric).
         if (is_numeric(operand)) return operand;
         value_destroy(&operand);
         return runtime_error(node, "unary '+' requires numeric operand");
@@ -207,9 +200,9 @@ static Value eval_unary(ASTNode* node) {
     return runtime_error(node, "unsupported unary op");
 }
 
-// === Main dispatch ===
+// === Main expression dispatch ===
 
-Value evaluate(ASTNode* node) {
+Value evaluate(ASTNode* node, Environment* env) {
     if (!node) return value_none();
 
     switch (node->type) {
@@ -225,30 +218,38 @@ Value evaluate(ASTNode* node) {
         case AST_LITERAL_NONE:
             return value_none();
 
+        // === Identifier (variable lookup) ===
+        case AST_IDENTIFIER: {
+            Value* stored = env_get(env, node->as.identifier.name);
+            if (!stored) {
+                return runtime_error(node,
+                    "undefined variable '%s'",
+                    node->as.identifier.name);
+            }
+            return value_clone(*stored);
+        }
+
         // === Grouping ===
         case AST_GROUPING:
-            return evaluate(node->as.grouping.expression);
+            return evaluate(node->as.grouping.expression, env);
 
         // === Binary ===
         case AST_BINARY: {
             TokenType op = node->as.binary.op;
 
-            // Logical ops short-circuit - handle before evaluating both sides
             if (op == TOKEN_AND || op == TOKEN_OR) {
-                return eval_logical(node);
+                return eval_logical(node, env);
             }
 
-            Value left = evaluate(node->as.binary.left);
-            Value right = evaluate(node->as.binary.right);
+            Value left = evaluate(node->as.binary.left, env);
+            Value right = evaluate(node->as.binary.right, env);
             Value result;
 
-            // Comparisons
             if (op == TOKEN_LESS || op == TOKEN_GREATER ||
                 op == TOKEN_LESS_EQUALS || op == TOKEN_GREATER_EQUALS ||
                 op == TOKEN_EQUALS_EQUALS || op == TOKEN_NOT_EQUALS) {
                 result = eval_comparison(node, left, right);
             }
-            // Arithmetic
             else if (op == TOKEN_PLUS || op == TOKEN_MINUS ||
                      op == TOKEN_STAR || op == TOKEN_SLASH ||
                      op == TOKEN_PERCENT) {
@@ -265,22 +266,19 @@ Value evaluate(ASTNode* node) {
 
         // === Unary ===
         case AST_UNARY:
-            return eval_unary(node);
+            return eval_unary(node, env);
 
         // === Ternary (x if cond else y) ===
         case AST_TERNARY: {
-            Value cond = evaluate(node->as.ternary.condition);
+            Value cond = evaluate(node->as.ternary.condition, env);
             bool truthy = is_truthy(cond);
             value_destroy(&cond);
             return truthy
-                ? evaluate(node->as.ternary.then_expr)
-                : evaluate(node->as.ternary.else_expr);
+                ? evaluate(node->as.ternary.then_expr, env)
+                : evaluate(node->as.ternary.else_expr, env);
         }
 
         // === Deferred to future sessions ===
-        case AST_IDENTIFIER:
-            return runtime_error(node,
-                "variables not yet supported (Session 3)");
         case AST_CALL:
             return runtime_error(node,
                 "function calls not yet supported (Session 4)");
@@ -300,5 +298,100 @@ Value evaluate(ASTNode* node) {
 
         default:
             return runtime_error(node, "unsupported AST node type");
+    }
+}
+
+// === Statement evaluation ===
+//
+// Statements execute for their side effects (assignment, control flow).
+// Expression statements evaluate the wrapped expression and return
+// its Value so callers (like the REPL) can print it. Non-expression
+// statements return VAL_NONE.
+
+Value evaluate_statement(ASTNode* node, Environment* env) {
+    if (!node) return value_none();
+
+    switch (node->type) {
+        // === Expression statement: evaluate and return the value ===
+        case AST_EXPRESSION_STMT:
+            return evaluate(node->as.expression_stmt.expression, env);
+
+        // === Assignment: bind or update a variable ===
+        case AST_ASSIGNMENT: {
+            ASTNode* target = node->as.assignment.target;
+            if (target->type != AST_IDENTIFIER) {
+                return runtime_error(node,
+                    "assignment target must be an identifier (Session 4 for attributes/subscripts)");
+            }
+            Value rhs = evaluate(node->as.assignment.value, env);
+            // env_assign takes ownership of rhs
+            env_assign(env, target->as.identifier.name, rhs);
+            return value_none();
+        }
+
+        // === If statement: evaluate condition, take one branch ===
+        case AST_IF: {
+            Value cond = evaluate(node->as.if_stmt.condition, env);
+            bool truthy = is_truthy(cond);
+            value_destroy(&cond);
+
+            if (truthy) {
+                // Execute then-block statements
+                ASTNode* then_block = node->as.if_stmt.then_block;
+                if (then_block) {
+                    evaluate_statement(then_block, env);
+                }
+            } else if (node->as.if_stmt.else_block) {
+                evaluate_statement(node->as.if_stmt.else_block, env);
+            }
+            return value_none();
+        }
+
+        // === Module: execute all statements in order ===
+        case AST_MODULE: {
+            Value last = value_none();
+            for (int i = 0; i < node->as.module.count; i++) {
+                value_destroy(&last);
+                last = evaluate_statement(node->as.module.statements[i], env);
+            }
+            return last;
+        }
+
+        // === Block: execute all statements in order (same as module) ===
+        case AST_BLOCK: {
+            Value last = value_none();
+            for (int i = 0; i < node->as.block.count; i++) {
+                value_destroy(&last);
+                last = evaluate_statement(node->as.block.statements[i], env);
+            }
+            return last;
+        }
+
+        // === Pass: no-op ===
+        case AST_PASS:
+            return value_none();
+
+        // === Deferred to future sessions ===
+        case AST_WHILE:
+            return runtime_error(node,
+                "while loops not yet supported (Session 3c or Session 4)");
+        case AST_FOR:
+            return runtime_error(node,
+                "for loops not yet supported (Session 4)");
+        case AST_FUNCTION_DEF:
+            return runtime_error(node,
+                "function definitions not yet supported (Session 4)");
+        case AST_CLASS_DEF:
+            return runtime_error(node,
+                "class definitions not yet supported (Session 5)");
+        case AST_RETURN:
+            return runtime_error(node,
+                "return outside function (Session 4)");
+
+        default:
+            // If it wasn't a recognized statement type, try evaluating
+            // it as an expression (this handles bare expressions that
+            // slipped in as statements).
+            return evaluate(node, env);
     }
 }
