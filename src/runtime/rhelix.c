@@ -46,6 +46,87 @@ static char* read_line(void) {
     return strdup(buffer);
 }
 
+// True if the last non-whitespace character of a line is ':'.
+// A trailing ':' signals a Python-style block header (def, if,
+// while, for, class, with) and we should read continuation lines.
+static bool ends_with_colon(const char* line) {
+    if (!line) return false;
+    // Scan from end backward, skip trailing whitespace
+    int i = (int)strlen(line) - 1;
+    while (i >= 0 && (line[i] == ' ' || line[i] == '\t')) i--;
+    return i >= 0 && line[i] == ':';
+}
+
+// True if the line is empty or only whitespace.
+static bool is_empty_line(const char* line) {
+    if (!line) return true;
+    for (const char* p = line; *p; p++) {
+        if (*p != ' ' && *p != '\t') return false;
+    }
+    return true;
+}
+
+// Read a full statement, potentially spanning multiple lines for
+// block-structured statements. Returns a malloc'd string with lines
+// joined by '\n', or NULL on EOF.
+//
+// Logic: read one line. If it ends with ':', enter multi-line mode:
+// keep reading, showing a '... ' continuation prompt, until we get
+// a blank line. Concatenate everything with newlines between.
+static char* read_statement(void) {
+    char* first = read_line();
+    if (!first) return NULL;
+
+    // If the first line doesn't end with ':', return it as-is.
+    if (!ends_with_colon(first)) {
+        return first;
+    }
+
+    // Multi-line mode: accumulate lines until blank
+    // Start with the first line
+    size_t buf_capacity = 1024;
+    size_t buf_len = strlen(first);
+    char* buffer = (char*)malloc(buf_capacity);
+    if (!buffer) {
+        free(first);
+        return NULL;
+    }
+    strcpy(buffer, first);
+    free(first);
+
+    while (1) {
+        printf("... ");
+        fflush(stdout);
+        char* line = read_line();
+        if (!line) break;  // EOF ends multi-line mode
+
+        if (is_empty_line(line)) {
+            free(line);
+            break;
+        }
+
+        // Append '\n' + line to buffer, growing if needed
+        size_t line_len = strlen(line);
+        size_t needed = buf_len + 1 + line_len + 1;  // \n + line + \0
+        if (needed > buf_capacity) {
+            while (buf_capacity < needed) buf_capacity *= 2;
+            char* grown = (char*)realloc(buffer, buf_capacity);
+            if (!grown) {
+                free(line);
+                free(buffer);
+                return NULL;
+            }
+            buffer = grown;
+        }
+        buffer[buf_len] = '\n';
+        strcpy(buffer + buf_len + 1, line);
+        buf_len += 1 + line_len;
+        free(line);
+    }
+
+    return buffer;
+}
+
 static bool is_blank(const char* line) {
     if (!line) return true;
     for (const char* p = line; *p; p++) {
@@ -74,7 +155,7 @@ int main(void) {
         printf("rhelix> ");
         fflush(stdout);
 
-        char* line = read_line();
+        char* line = read_statement();
 
         if (!line) {
             printf("\n");
@@ -119,11 +200,12 @@ int main(void) {
             free(line);
             continue;
         }
-
+        
         // Evaluate the module against the persistent global env.
         // evaluate_statement on a module iterates its statements and
         // returns the last statement's value (Python REPL semantic).
-        Value result = evaluate_statement(module, global);
+        StmtResult sr = evaluate_statement(module, global);
+        Value result = sr.value;
 
         // If the last statement was an expression statement, print
         // the result. Otherwise (assignment, if, etc.), suppress.
@@ -146,7 +228,12 @@ int main(void) {
 
         // Clean up
         value_destroy(&result);
-        ast_destroy(module);
+        // NOTE: intentionally leak the module AST at REPL level.
+        // Function definitions store pointers into the AST (fn->definition)
+        // that need to survive across REPL lines. Freeing here would
+        // dangling-pointer the stored function values. Acceptable leak
+        // for a learning REPL - future GC or refcounting will fix.
+        // ast_destroy(module);
         parser_destroy(parser);
         for (int i = 0; i < token_count; i++) free(tokens[i]);
         free(tokens);

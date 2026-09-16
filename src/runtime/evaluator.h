@@ -37,7 +37,15 @@ Value evaluate(ASTNode* node, Environment* env);
 // Returns the wrapped expression's Value for AST_EXPRESSION_STMT
 // (so REPL callers can print it), the last statement's value for
 // AST_MODULE and AST_BLOCK (Python REPL semantic), VAL_NONE otherwise.
-Value evaluate_statement(ASTNode* node, Environment* env);
+// Result of executing a statement. If `returned` is true, a return
+// statement fired somewhere in the executed subtree and the value
+// should be propagated upward (the enclosing function call site
+// consumes it, or the REPL treats it as the module's value).
+typedef struct StmtResult {
+    Value value;
+    bool returned;
+} StmtResult;
+StmtResult evaluate_statement(ASTNode* node, Environment* env);
 
 
 #endif // RHELIX_EVALUATOR_H

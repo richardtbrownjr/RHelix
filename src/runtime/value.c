@@ -49,6 +49,12 @@ Value value_string(const char* chars) {
     }
     return v;
 }
+Value value_function(FunctionValue* fn) {
+    Value v;
+    v.kind = VAL_FUNCTION;
+    v.as.function = fn;
+    return v;
+}
 
 // === Destructor ===
 
@@ -59,6 +65,12 @@ void value_destroy(Value* value) {
             free(value->as.string.chars);
             value->as.string.chars = NULL;
             value->as.string.length = 0;
+            break;
+        case VAL_FUNCTION:
+            // Function values are non-owning - the FunctionValue lives
+            // beyond the Value's lifetime (shared across clones,
+            // stored in environment). Destroyed only at process exit
+            // for now. Refcounting or GC will fix this later.
             break;
         default:
             // Primitives own nothing on the heap.
@@ -97,6 +109,13 @@ char* value_to_string(Value value) {
             result[len + 2] = '\0';
             return result;
         }
+      case VAL_FUNCTION: {
+          char buf[128];
+          snprintf(buf, sizeof(buf), "<function %s>",
+              value.as.function && value.as.function->name
+                  ? value.as.function->name : "?");
+          return strdup(buf);
+        }
         default:
             return strdup("<unknown>");
     }
@@ -122,6 +141,9 @@ bool value_equals(Value a, Value b) {
             }
             return memcmp(a.as.string.chars, b.as.string.chars,
                           a.as.string.length) == 0;
+        case VAL_FUNCTION:
+          // Function equality is identity - same FunctionValue pointer
+          return a.as.function == b.as.function;
         default:
             return false;
     }
@@ -135,6 +157,7 @@ Value value_clone(Value source) {
         case VAL_BOOL:
         case VAL_INT:
         case VAL_FLOAT:
+        case VAL_FUNCTION:
             // Primitives: struct copy is sufficient, nothing owned.
             return source;
         case VAL_STRING: {

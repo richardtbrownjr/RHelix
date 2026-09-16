@@ -2,6 +2,7 @@
 
 #include "evaluator.h"
 #include "../compiler/token.h"
+#include "../compiler/ast.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -9,7 +10,6 @@
 
 // === Helpers ===
 
-// Emit a runtime error and return VAL_NONE.
 static Value runtime_error(ASTNode* node, const char* format, ...) {
     fprintf(stderr, "[runtime] line %d, col %d: ",
             node ? node->line : 0,
@@ -22,18 +22,14 @@ static Value runtime_error(ASTNode* node, const char* format, ...) {
     return value_none();
 }
 
-// True if a Value is numeric (INT or FLOAT).
 static bool is_numeric(Value v) {
     return v.kind == VAL_INT || v.kind == VAL_FLOAT;
 }
 
-// Convert a Value to double for numeric operations. Assumes is_numeric.
 static double to_double(Value v) {
     return v.kind == VAL_INT ? (double)v.as.i : v.as.f;
 }
 
-// Truthiness: what counts as "true" for logical ops and conditionals.
-// Matches Python semantics: None/false/0/0.0/empty-string are falsy.
 static bool is_truthy(Value v) {
     switch (v.kind) {
         case VAL_NONE:   return false;
@@ -41,8 +37,25 @@ static bool is_truthy(Value v) {
         case VAL_INT:    return v.as.i != 0;
         case VAL_FLOAT:  return v.as.f != 0.0;
         case VAL_STRING: return v.as.string.length > 0;
+        case VAL_FUNCTION: return v.as.function != NULL;
         default:         return true;
     }
+}
+
+// Shorthand for building a StmtResult that has NOT returned.
+static StmtResult stmt_ok(Value v) {
+    StmtResult r;
+    r.value = v;
+    r.returned = false;
+    return r;
+}
+
+// Shorthand for building a StmtResult that HAS returned.
+static StmtResult stmt_return(Value v) {
+    StmtResult r;
+    r.value = v;
+    r.returned = true;
+    return r;
 }
 
 // === Binary arithmetic ===
@@ -50,7 +63,6 @@ static bool is_truthy(Value v) {
 static Value eval_arithmetic(ASTNode* node, Value left, Value right) {
     TokenType op = node->as.binary.op;
 
-    // String concatenation: only + supports it.
     if (left.kind == VAL_STRING && right.kind == VAL_STRING) {
         if (op == TOKEN_PLUS) {
             int total = left.as.string.length + right.as.string.length;
@@ -66,8 +78,7 @@ static Value eval_arithmetic(ASTNode* node, Value left, Value right) {
             result.as.string.length = total;
             return result;
         }
-        return runtime_error(node,
-            "unsupported string operation");
+        return runtime_error(node, "unsupported string operation");
     }
 
     if (!is_numeric(left) || !is_numeric(right)) {
@@ -75,7 +86,6 @@ static Value eval_arithmetic(ASTNode* node, Value left, Value right) {
             "cannot apply arithmetic to non-numeric values");
     }
 
-    // Promotion: any float involved -> float result.
     bool promote = (left.kind == VAL_FLOAT || right.kind == VAL_FLOAT);
 
     if (promote) {
@@ -95,7 +105,6 @@ static Value eval_arithmetic(ASTNode* node, Value left, Value right) {
         }
     }
 
-    // Both ints
     long long l = left.as.i;
     long long r = right.as.i;
     switch (op) {
@@ -150,12 +159,12 @@ static Value eval_logical(ASTNode* node, Environment* env) {
     Value left = evaluate(node->as.binary.left, env);
 
     if (op == TOKEN_AND) {
-        if (!is_truthy(left)) return left;  // Short-circuit
+        if (!is_truthy(left)) return left;
         value_destroy(&left);
         return evaluate(node->as.binary.right, env);
     }
     if (op == TOKEN_OR) {
-        if (is_truthy(left)) return left;   // Short-circuit
+        if (is_truthy(left)) return left;
         value_destroy(&left);
         return evaluate(node->as.binary.right, env);
     }
@@ -198,6 +207,73 @@ static Value eval_unary(ASTNode* node, Environment* env) {
 
     value_destroy(&operand);
     return runtime_error(node, "unsupported unary op");
+}
+
+// === Function calls ===
+// Evaluates a call: extracts the callable, evaluates arguments,
+// creates a child environment with parameters bound, executes the
+// body, unwinds on return.
+
+static Value eval_call(ASTNode* node, Environment* env) {
+    // Evaluate the callee expression
+    Value callee = evaluate(node->as.call.callee, env);
+
+    if (callee.kind != VAL_FUNCTION || !callee.as.function) {
+        value_destroy(&callee);
+        return runtime_error(node, "value is not callable");
+    }
+
+    FunctionValue* fn = callee.as.function;
+    ASTNode* def = fn->definition;
+
+    // Check arity: parameter count vs argument count
+    int expected = def->as.function_def.param_count;
+    int actual = node->as.call.arg_count;
+    if (expected != actual) {
+        value_destroy(&callee);
+        return runtime_error(node,
+            "%s() takes %d arguments but %d were given",
+            fn->name ? fn->name : "<anonymous>", expected, actual);
+    }
+
+    // Create child environment with closure as parent
+    Environment* call_env = env_create(fn->closure);
+    if (!call_env) {
+        value_destroy(&callee);
+        return runtime_error(node, "could not create call environment");
+    }
+
+    // Evaluate each argument and bind to the corresponding parameter
+    for (int i = 0; i < actual; i++) {
+        Value arg_val = evaluate(node->as.call.args[i], env);
+        const char* param_name = def->as.function_def.params[i].name;
+        env_define(call_env, param_name, arg_val);
+    }
+
+    // Execute the body as a block
+    StmtResult body_result = evaluate_statement(def->as.function_def.body, call_env);
+
+    // Value from return, or VAL_NONE if fell off the end
+    Value return_value = body_result.returned
+        ? body_result.value
+        : value_none();
+
+    // If body_result.value was NOT the return value (i.e., no return
+    // fired but last statement evaluated), destroy it to avoid leak.
+    // (When body_result.returned is true, we're using its value as
+    // return_value so we DON'T destroy it.)
+    if (!body_result.returned) {
+        value_destroy(&body_result.value);
+    }
+
+    // Destroy the call environment (parameters and locals are freed here)
+    env_destroy(call_env);
+
+    // Destroy the callee Value (it was a clone anyway - FunctionValue
+    // itself lives on)
+    value_destroy(&callee);
+
+    return return_value;
 }
 
 // === Main expression dispatch ===
@@ -278,23 +354,20 @@ Value evaluate(ASTNode* node, Environment* env) {
                 : evaluate(node->as.ternary.else_expr, env);
         }
 
-        // === Deferred to future sessions ===
+        // === Function call ===
         case AST_CALL:
-            return runtime_error(node,
-                "function calls not yet supported (Session 4)");
+            return eval_call(node, env);
+
+        // === Deferred to future sessions ===
         case AST_ATTRIBUTE:
-            return runtime_error(node,
-                "attribute access not yet supported");
+            return runtime_error(node, "attribute access not yet supported");
         case AST_SUBSCRIPT:
-            return runtime_error(node,
-                "subscripts not yet supported");
+            return runtime_error(node, "subscripts not yet supported");
         case AST_LIST_LITERAL:
         case AST_DICT_LITERAL:
-            return runtime_error(node,
-                "collection literals not yet supported");
+            return runtime_error(node, "collection literals not yet supported");
         case AST_LAMBDA:
-            return runtime_error(node,
-                "lambdas not yet supported (Session 4)");
+            return runtime_error(node, "lambdas not yet supported (Session 4+)");
 
         default:
             return runtime_error(node, "unsupported AST node type");
@@ -303,95 +376,125 @@ Value evaluate(ASTNode* node, Environment* env) {
 
 // === Statement evaluation ===
 //
-// Statements execute for their side effects (assignment, control flow).
-// Expression statements evaluate the wrapped expression and return
-// its Value so callers (like the REPL) can print it. Non-expression
-// statements return VAL_NONE.
+// Returns StmtResult { value, returned }. If returned is true, a
+// return statement fired and the value should propagate up. Callers
+// (block iteration, function calls) check this flag and unwind.
 
-Value evaluate_statement(ASTNode* node, Environment* env) {
-    if (!node) return value_none();
+StmtResult evaluate_statement(ASTNode* node, Environment* env) {
+    if (!node) return stmt_ok(value_none());
 
     switch (node->type) {
-        // === Expression statement: evaluate and return the value ===
+        // === Expression statement ===
         case AST_EXPRESSION_STMT:
-            return evaluate(node->as.expression_stmt.expression, env);
+            return stmt_ok(evaluate(node->as.expression_stmt.expression, env));
 
-        // === Assignment: bind or update a variable ===
+        // === Assignment ===
         case AST_ASSIGNMENT: {
             ASTNode* target = node->as.assignment.target;
             if (target->type != AST_IDENTIFIER) {
-                return runtime_error(node,
-                    "assignment target must be an identifier (Session 4 for attributes/subscripts)");
+                return stmt_ok(runtime_error(node,
+                    "assignment target must be an identifier (Session 5 for attributes/subscripts)"));
             }
             Value rhs = evaluate(node->as.assignment.value, env);
-            // env_assign takes ownership of rhs
             env_assign(env, target->as.identifier.name, rhs);
-            return value_none();
+            return stmt_ok(value_none());
         }
 
-        // === If statement: evaluate condition, take one branch ===
+        // === If statement ===
         case AST_IF: {
             Value cond = evaluate(node->as.if_stmt.condition, env);
             bool truthy = is_truthy(cond);
             value_destroy(&cond);
 
             if (truthy) {
-                // Execute then-block statements
-                ASTNode* then_block = node->as.if_stmt.then_block;
-                if (then_block) {
-                    evaluate_statement(then_block, env);
+                if (node->as.if_stmt.then_block) {
+                    return evaluate_statement(node->as.if_stmt.then_block, env);
                 }
             } else if (node->as.if_stmt.else_block) {
-                evaluate_statement(node->as.if_stmt.else_block, env);
+                return evaluate_statement(node->as.if_stmt.else_block, env);
             }
-            return value_none();
+            return stmt_ok(value_none());
         }
 
-        // === Module: execute all statements in order ===
+        // === Return statement ===
+        case AST_RETURN: {
+            Value ret_val = node->as.ret.value
+                ? evaluate(node->as.ret.value, env)
+                : value_none();
+            return stmt_return(ret_val);
+        }
+
+        // === Function definition ===
+        case AST_FUNCTION_DEF: {
+            // Allocate a FunctionValue capturing the current env as closure
+            FunctionValue* fn = (FunctionValue*)malloc(sizeof(FunctionValue));
+            if (!fn) {
+                return stmt_ok(runtime_error(node, "could not allocate function value"));
+            }
+            fn->definition = node;
+            fn->closure = env;
+            fn->name = node->as.function_def.name
+                ? strdup(node->as.function_def.name)
+                : strdup("<anonymous>");
+
+            // Wrap in a Value and store in current environment under
+            // the function's name.
+            Value fn_val = value_function(fn);
+            if (node->as.function_def.name) {
+                env_define(env, node->as.function_def.name, fn_val);
+            } else {
+                // Anonymous - shouldn't happen for FUNCTION_DEF, but be safe
+                value_destroy(&fn_val);
+            }
+            return stmt_ok(value_none());
+        }
+
+        // === Module: execute statements in order, propagate returns ===
         case AST_MODULE: {
             Value last = value_none();
             for (int i = 0; i < node->as.module.count; i++) {
                 value_destroy(&last);
-                last = evaluate_statement(node->as.module.statements[i], env);
+                StmtResult r = evaluate_statement(node->as.module.statements[i], env);
+                if (r.returned) {
+                    // Return escaping the module (shouldn't happen in normal code)
+                    return r;
+                }
+                last = r.value;
             }
-            return last;
+            return stmt_ok(last);
         }
 
-        // === Block: execute all statements in order (same as module) ===
+        // === Block: execute statements in order, propagate returns ===
         case AST_BLOCK: {
             Value last = value_none();
             for (int i = 0; i < node->as.block.count; i++) {
                 value_destroy(&last);
-                last = evaluate_statement(node->as.block.statements[i], env);
+                StmtResult r = evaluate_statement(node->as.block.statements[i], env);
+                if (r.returned) {
+                    return r;  // Propagate up to function call site
+                }
+                last = r.value;
             }
-            return last;
+            return stmt_ok(last);
         }
 
-        // === Pass: no-op ===
+        // === Pass ===
         case AST_PASS:
-            return value_none();
+            return stmt_ok(value_none());
 
         // === Deferred to future sessions ===
         case AST_WHILE:
-            return runtime_error(node,
-                "while loops not yet supported (Session 3c or Session 4)");
+            return stmt_ok(runtime_error(node,
+                "while loops not yet supported (Session 5)"));
         case AST_FOR:
-            return runtime_error(node,
-                "for loops not yet supported (Session 4)");
-        case AST_FUNCTION_DEF:
-            return runtime_error(node,
-                "function definitions not yet supported (Session 4)");
+            return stmt_ok(runtime_error(node,
+                "for loops not yet supported (Session 5)"));
         case AST_CLASS_DEF:
-            return runtime_error(node,
-                "class definitions not yet supported (Session 5)");
-        case AST_RETURN:
-            return runtime_error(node,
-                "return outside function (Session 4)");
+            return stmt_ok(runtime_error(node,
+                "class definitions not yet supported (Session 5)"));
 
         default:
-            // If it wasn't a recognized statement type, try evaluating
-            // it as an expression (this handles bare expressions that
-            // slipped in as statements).
-            return evaluate(node, env);
+            // Bare expression as statement
+            return stmt_ok(evaluate(node, env));
     }
 }

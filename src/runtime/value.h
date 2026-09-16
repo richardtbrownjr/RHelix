@@ -27,7 +27,23 @@ typedef enum {
     VAL_INT,       // 64-bit signed integer
     VAL_FLOAT,     // 64-bit double
     VAL_STRING,    // Heap-allocated char buffer + length
+    VAL_FUNCTION,  // Callable - AST + captured environment
 } ValueKind;
+
+// Forward declarations to avoid circular includes.
+// The actual types live in ast.h and environment.h.
+struct ASTNode;
+struct Environment;
+
+// A callable value: function AST + the environment where it was
+// defined (the closure). Multiple Values may reference the same
+// FunctionValue - lifetime is currently "immortal" (leaked at
+// program end). Refcounting or GC will fix that in a future session.
+typedef struct FunctionValue {
+    struct ASTNode* definition;    // AST_FUNCTION_DEF node - non-owning
+    struct Environment* closure;   // Captured env - non-owning
+    char* name;                    // Owned - strdup'd
+} FunctionValue;
 
 typedef struct Value {
     ValueKind kind;
@@ -39,6 +55,7 @@ typedef struct Value {
             char* chars;   // Owned; freed by value_destroy
             int length;    // Byte length, not including null terminator
         } string;
+        FunctionValue* function;  // Non-owning pointer (see FunctionValue notes)
     } as;
 } Value;
 
@@ -51,6 +68,7 @@ Value value_bool(bool b);
 Value value_int(long long i);
 Value value_float(double f);
 Value value_string(const char* chars);  // Copies input
+Value value_function(FunctionValue* fn);
 
 // === Destructor ===
 // Frees any heap data owned by the Value. Safe to call on primitives
