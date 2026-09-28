@@ -41,10 +41,28 @@ Value evaluate(ASTNode* node, Environment* env);
 // statement fired somewhere in the executed subtree and the value
 // should be propagated upward (the enclosing function call site
 // consumes it, or the REPL treats it as the module's value).
+// Signal that a statement produced. Most statements produce SIGNAL_NORMAL.
+// return, break, and continue produce their respective signals which
+// propagate up through nested blocks until consumed by the enclosing
+// function call (SIGNAL_RETURN) or loop (SIGNAL_BREAK/SIGNAL_CONTINUE).
+typedef enum {
+    SIGNAL_NORMAL,
+    SIGNAL_RETURN,
+    SIGNAL_BREAK,
+    SIGNAL_CONTINUE,
+} StmtSignal;
+
+// Result of executing a statement. The signal field tells enclosing
+// scopes how to react; the value carries the return value (for
+// SIGNAL_RETURN) or the last-evaluated Value (for SIGNAL_NORMAL).
 typedef struct StmtResult {
     Value value;
-    bool returned;
+    StmtSignal signal;
 } StmtResult;
+
+// Evaluate a statement AST node. Executes for side effects.
+// Returns StmtResult { value, signal }. Signal tells enclosing scope
+// how to react (return, break, continue, or nothing).
 StmtResult evaluate_statement(ASTNode* node, Environment* env);
 
 

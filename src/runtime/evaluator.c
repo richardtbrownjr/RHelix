@@ -42,19 +42,36 @@ static bool is_truthy(Value v) {
     }
 }
 
-// Shorthand for building a StmtResult that has NOT returned.
+// Shorthand for building a StmtResult with SIGNAL_NORMAL.
 static StmtResult stmt_ok(Value v) {
     StmtResult r;
     r.value = v;
-    r.returned = false;
+    r.signal = SIGNAL_NORMAL;
     return r;
 }
 
-// Shorthand for building a StmtResult that HAS returned.
+// Shorthand for building a StmtResult with SIGNAL_RETURN.
 static StmtResult stmt_return(Value v) {
     StmtResult r;
     r.value = v;
-    r.returned = true;
+    r.signal = SIGNAL_RETURN;
+    return r;
+}
+
+// Shorthand for SIGNAL_BREAK - carries a None value since break
+// doesn't produce a value.
+static StmtResult stmt_break(void) {
+    StmtResult r;
+    r.value = value_none();
+    r.signal = SIGNAL_BREAK;
+    return r;
+}
+
+// Shorthand for SIGNAL_CONTINUE - same value semantics as break.
+static StmtResult stmt_continue(void) {
+    StmtResult r;
+    r.value = value_none();
+    r.signal = SIGNAL_CONTINUE;
     return r;
 }
 
@@ -254,15 +271,15 @@ static Value eval_call(ASTNode* node, Environment* env) {
     StmtResult body_result = evaluate_statement(def->as.function_def.body, call_env);
 
     // Value from return, or VAL_NONE if fell off the end
-    Value return_value = body_result.returned
+    Value return_value = body_result.signal == SIGNAL_RETURN
         ? body_result.value
         : value_none();
 
     // If body_result.value was NOT the return value (i.e., no return
     // fired but last statement evaluated), destroy it to avoid leak.
-    // (When body_result.returned is true, we're using its value as
+    // (When body_result.signal is SIGNAL_RETURN, we're using its value as
     // return_value so we DON'T destroy it.)
-    if (!body_result.returned) {
+    if (body_result.signal != SIGNAL_RETURN) {
         value_destroy(&body_result.value);
     }
 
@@ -455,7 +472,7 @@ StmtResult evaluate_statement(ASTNode* node, Environment* env) {
             for (int i = 0; i < node->as.module.count; i++) {
                 value_destroy(&last);
                 StmtResult r = evaluate_statement(node->as.module.statements[i], env);
-                if (r.returned) {
+                if (r.signal == SIGNAL_RETURN) {
                     // Return escaping the module (shouldn't happen in normal code)
                     return r;
                 }
@@ -470,7 +487,7 @@ StmtResult evaluate_statement(ASTNode* node, Environment* env) {
             for (int i = 0; i < node->as.block.count; i++) {
                 value_destroy(&last);
                 StmtResult r = evaluate_statement(node->as.block.statements[i], env);
-                if (r.returned) {
+                if (r.signal != SIGNAL_NORMAL) {
                     return r;  // Propagate up to function call site
                 }
                 last = r.value;
@@ -482,13 +499,45 @@ StmtResult evaluate_statement(ASTNode* node, Environment* env) {
         case AST_PASS:
             return stmt_ok(value_none());
 
+        case AST_BREAK:
+          return stmt_break();
+
+        case AST_CONTINUE:
+          return stmt_continue();
+
         // === Deferred to future sessions ===
-        case AST_WHILE:
-            return stmt_ok(runtime_error(node,
-                "while loops not yet supported (Session 5)"));
+      case AST_WHILE: {
+          // Loop until condition is falsy.
+          // Body block's StmtResult signal tells us how to react:
+          //   SIGNAL_BREAK    -> exit loop
+          //   SIGNAL_CONTINUE -> skip to next iteration
+          //   SIGNAL_RETURN   -> propagate up (enclosing function returns)
+          //   SIGNAL_NORMAL   -> continue to next iteration
+          while (1) {
+              Value cond = evaluate(node->as.while_stmt.condition, env);
+              bool truthy = is_truthy(cond);
+              value_destroy(&cond);
+              if (!truthy) break;
+
+              if (node->as.while_stmt.body) {
+                  StmtResult r = evaluate_statement(node->as.while_stmt.body, env);
+                  if (r.signal == SIGNAL_BREAK) {
+                      value_destroy(&r.value);
+                      break;
+                  }
+                  if (r.signal == SIGNAL_RETURN) {
+                      return r;  // Propagate up
+                  }
+                  // SIGNAL_CONTINUE and SIGNAL_NORMAL both proceed to
+                  // next iteration; just clean up the value.
+                  value_destroy(&r.value);
+              }
+          }
+          return stmt_ok(value_none());
+      }
         case AST_FOR:
-            return stmt_ok(runtime_error(node,
-                "for loops not yet supported (Session 5)"));
+          return stmt_ok(runtime_error(node,
+              "for loops require iterables (VAL_LIST, range()) - Session 6"));
         case AST_CLASS_DEF:
             return stmt_ok(runtime_error(node,
                 "class definitions not yet supported (Session 5)"));
