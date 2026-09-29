@@ -38,6 +38,7 @@ static bool is_truthy(Value v) {
         case VAL_FLOAT:  return v.as.f != 0.0;
         case VAL_STRING: return v.as.string.length > 0;
         case VAL_FUNCTION: return v.as.function != NULL;
+        case VAL_NATIVE: return v.as.native != NULL;
         default:         return true;
     }
 }
@@ -235,10 +236,43 @@ static Value eval_call(ASTNode* node, Environment* env) {
     // Evaluate the callee expression
     Value callee = evaluate(node->as.call.callee, env);
 
-    if (callee.kind != VAL_FUNCTION || !callee.as.function) {
+    // Dispatch based on callee kind
+if (callee.kind == VAL_NATIVE) {
+    NativeFunction* nfn = callee.as.native;
+    if (!nfn) {
         value_destroy(&callee);
         return runtime_error(node, "value is not callable");
     }
+
+    int actual = node->as.call.arg_count;
+    if (nfn->arity != -1 && nfn->arity != actual) {
+        value_destroy(&callee);
+        return runtime_error(node,
+            "%s() takes %d arguments but %d were given",
+            nfn->name ? nfn->name : "<native>", nfn->arity, actual);
+    }
+
+    // Evaluate all arguments into a stack array
+    Value* args = (Value*)malloc(sizeof(Value) * (actual > 0 ? actual : 1));
+    for (int i = 0; i < actual; i++) {
+        args[i] = evaluate(node->as.call.args[i], env);
+    }
+
+    Value result = nfn->fn(actual, args);
+
+    // Destroy the arg values (native received them by value)
+    for (int i = 0; i < actual; i++) {
+        value_destroy(&args[i]);
+    }
+    free(args);
+    value_destroy(&callee);
+    return result;
+}
+
+if (callee.kind != VAL_FUNCTION || !callee.as.function) {
+    value_destroy(&callee);
+    return runtime_error(node, "value is not callable");
+}
 
     FunctionValue* fn = callee.as.function;
     ASTNode* def = fn->definition;

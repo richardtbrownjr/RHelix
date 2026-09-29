@@ -25,12 +25,14 @@
 #include "value.h"
 #include "environment.h"
 #include "evaluator.h"
+#include "native_fns.h"
 #include "../compiler/lexer.h"
 #include "../compiler/parser.h"
 #include "../compiler/ast.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
 
 // Reads a line from stdin. Returns a malloc'd string (caller frees)
 // or NULL on EOF. Strips trailing newline.
@@ -151,6 +153,9 @@ int main(void) {
         return 1;
     }
 
+    // Install built-in native functions (print, etc.)
+    native_fns_install(global);
+
     while (1) {
         printf("rhelix> ");
         fflush(stdout);
@@ -200,7 +205,7 @@ int main(void) {
             free(line);
             continue;
         }
-        
+
         // Evaluate the module against the persistent global env.
         // evaluate_statement on a module iterates its statements and
         // returns the last statement's value (Python REPL semantic).

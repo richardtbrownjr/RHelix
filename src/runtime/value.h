@@ -28,12 +28,14 @@ typedef enum {
     VAL_FLOAT,     // 64-bit double
     VAL_STRING,    // Heap-allocated char buffer + length
     VAL_FUNCTION,  // Callable - AST + captured environment
+    VAL_NATIVE,    // C-implemented function callable from RHelix
 } ValueKind;
 
 // Forward declarations to avoid circular includes.
 // The actual types live in ast.h and environment.h.
 struct ASTNode;
 struct Environment;
+typedef struct Value Value;
 
 // A callable value: function AST + the environment where it was
 // defined (the closure). Multiple Values may reference the same
@@ -44,6 +46,20 @@ typedef struct FunctionValue {
     struct Environment* closure;   // Captured env - non-owning
     char* name;                    // Owned - strdup'd
 } FunctionValue;
+
+// A native (C-implemented) function callable from RHelix code. Used
+// for built-ins like print, len, range. The C function receives an
+// arg count and an array of Values, returns a single Value. Arity
+// of -1 means variadic (any argc accepted); otherwise argc must
+// match arity exactly.
+//
+// Same "immortal" ownership rule as FunctionValue: allocated once at
+// startup by native_fns_install, never destroyed until process exit.
+typedef struct NativeFunction {
+    char* name;                                    // Owned - strdup'd
+    Value (*fn)(int argc, Value* argv);            // C function pointer
+    int arity;                                     // -1 for variadic
+} NativeFunction;
 
 typedef struct Value {
     ValueKind kind;
@@ -56,6 +72,7 @@ typedef struct Value {
             int length;    // Byte length, not including null terminator
         } string;
         FunctionValue* function;  // Non-owning pointer (see FunctionValue notes)
+        NativeFunction* native;   // Non-owning pointer (immortal)
     } as;
 } Value;
 
@@ -69,6 +86,7 @@ Value value_int(long long i);
 Value value_float(double f);
 Value value_string(const char* chars);  // Copies input
 Value value_function(FunctionValue* fn);
+Value value_native(NativeFunction* fn);
 
 // === Destructor ===
 // Frees any heap data owned by the Value. Safe to call on primitives
@@ -82,6 +100,10 @@ void value_destroy(Value* value);
 // Examples: "None", "true", "42", "3.14", "\"hello\""
 
 char* value_to_string(Value value);
+
+// Like value_to_string but strings are unquoted (for user-facing output
+// like print() rather than debug output). Caller must free.
+char* value_to_display(Value value);
 
 // === Equality ===
 // Structural equality: same kind, same payload. Strings compared by content.

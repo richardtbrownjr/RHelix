@@ -56,6 +56,13 @@ Value value_function(FunctionValue* fn) {
     return v;
 }
 
+Value value_native(NativeFunction* fn) {
+    Value v;
+    v.kind = VAL_NATIVE;
+    v.as.native = fn;
+    return v;
+}
+
 // === Destructor ===
 
 void value_destroy(Value* value) {
@@ -71,6 +78,9 @@ void value_destroy(Value* value) {
             // beyond the Value's lifetime (shared across clones,
             // stored in environment). Destroyed only at process exit
             // for now. Refcounting or GC will fix this later.
+            break;
+        case VAL_NATIVE:
+            // Native functions are also immortal - see VAL_FUNCTION note.
             break;
         default:
             // Primitives own nothing on the heap.
@@ -109,6 +119,7 @@ char* value_to_string(Value value) {
             result[len + 2] = '\0';
             return result;
         }
+
       case VAL_FUNCTION: {
           char buf[128];
           snprintf(buf, sizeof(buf), "<function %s>",
@@ -116,9 +127,28 @@ char* value_to_string(Value value) {
                   ? value.as.function->name : "?");
           return strdup(buf);
         }
+      case VAL_NATIVE: {
+          char buf[128];
+          snprintf(buf, sizeof(buf), "<native function %s>",
+            value.as.native && value.as.native->name
+              ? value.as.native->name : "?");
+          return strdup(buf);
+}
         default:
             return strdup("<unknown>");
     }
+}
+
+// value_to_display: like value_to_string but strings are unquoted.
+// Used by print() and other user-facing output. Caller must free.
+char* value_to_display(Value value) {
+    if (value.kind == VAL_STRING) {
+        if (value.as.string.chars) {
+            return strdup(value.as.string.chars);
+        }
+        return strdup("");
+    }
+    return value_to_string(value);
 }
 
 // === Equality ===
@@ -144,6 +174,8 @@ bool value_equals(Value a, Value b) {
         case VAL_FUNCTION:
           // Function equality is identity - same FunctionValue pointer
           return a.as.function == b.as.function;
+        case VAL_NATIVE:
+          return a.as.native == b.as.native;
         default:
             return false;
     }
@@ -159,6 +191,7 @@ Value value_clone(Value source) {
         case VAL_FLOAT:
         case VAL_FUNCTION:
             // Primitives: struct copy is sufficient, nothing owned.
+        case VAL_NATIVE:
             return source;
         case VAL_STRING: {
             // Duplicate the char buffer for independent ownership.
