@@ -105,7 +105,6 @@ static ASTNode* pass_statement(Parser* parser);
 static ASTNode* assert_statement(Parser* parser);
 static ASTNode* break_statement(Parser* parser);
 static ASTNode* continue_statement(Parser* parser);
-static ASTNode* assignment_statement(Parser* parser);
 static ASTNode* expression_statement(Parser* parser);
 static ASTNode* block(Parser* parser);
 static ASTNode* if_statement(Parser* parser);
@@ -645,19 +644,6 @@ static ASTNode* continue_statement(Parser* parser) {
     Token* continue_token = advance(parser);
     match(parser, TOKEN_NEWLINE);
     return ast_continue(continue_token->line, continue_token->column);
-}
-
-// assignment_statement -> IDENTIFIER "=" expression NEWLINE?
-static ASTNode* assignment_statement(Parser* parser) {
-    Token* name_token = advance(parser);
-    advance(parser);  // Consume EQUALS (verified by lookahead)
-    ASTNode* value = expression(parser);
-    if (!value) return NULL;
-    match(parser, TOKEN_NEWLINE);
-    ASTNode* target = ast_identifier(name_token->lexeme,
-                                     name_token->line, name_token->column);
-    return ast_assignment(target, value,
-                          name_token->line, name_token->column);
 }
 
 // expression_statement -> expression NEWLINE?
