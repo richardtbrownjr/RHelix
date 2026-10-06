@@ -29,6 +29,7 @@ typedef enum {
     VAL_STRING,    // Heap-allocated char buffer + length
     VAL_FUNCTION,  // Callable - AST + captured environment
     VAL_NATIVE,    // C-implemented function callable from RHelix
+    VAL_RANGE,     // Lazy integer range (start, stop, step)
 } ValueKind;
 
 // Forward declarations to avoid circular includes.
@@ -61,6 +62,25 @@ typedef struct NativeFunction {
     int arity;                                     // -1 for variadic
 } NativeFunction;
 
+// A lazy integer range: start/stop/step with a current cursor that
+// advances during iteration. Semantics match Python's range():
+//   range(stop)              -> start=0, stop=stop, step=1
+//   range(start, stop)       -> start, stop, step=1
+//   range(start, stop, step) -> all three; step != 0 required
+//
+// Owned by Values (unlike FunctionValue/NativeFunction which are
+// immortal), so value_destroy frees the RangeValue heap allocation
+// and value_clone deep-copies. Small enough that struct copy
+// semantics would work in-place, but allocating keeps the Value
+// union a stable size.
+typedef struct RangeValue {
+    long long start;
+    long long stop;
+    long long step;
+    long long current;   // Advances during iteration
+} RangeValue;
+
+
 typedef struct Value {
     ValueKind kind;
     union {
@@ -73,6 +93,7 @@ typedef struct Value {
         } string;
         FunctionValue* function;  // Non-owning pointer (see FunctionValue notes)
         NativeFunction* native;   // Non-owning pointer (immortal)
+        RangeValue* range;        // Owned - freed by value_destroy
     } as;
 } Value;
 
@@ -87,6 +108,7 @@ Value value_float(double f);
 Value value_string(const char* chars);  // Copies input
 Value value_function(FunctionValue* fn);
 Value value_native(NativeFunction* fn);
+Value value_range(long long start, long long stop, long long step);
 
 // === Destructor ===
 // Frees any heap data owned by the Value. Safe to call on primitives

@@ -215,6 +215,48 @@ static Value native_min(int argc, Value* argv) {
     }
     return value_clone(best);
 }
+// === range(stop) / range(start, stop) / range(start, stop, step) ===
+// Variadic (1-3 args) with Python semantics.
+static Value native_range(int argc, Value* argv) {
+    long long start, stop, step;
+
+    if (argc == 1) {
+        if (argv[0].kind != VAL_INT) {
+            fprintf(stderr, "[runtime] range() requires integer arguments\n");
+            return value_none();
+        }
+        start = 0;
+        stop = argv[0].as.i;
+        step = 1;
+    } else if (argc == 2) {
+        if (argv[0].kind != VAL_INT || argv[1].kind != VAL_INT) {
+            fprintf(stderr, "[runtime] range() requires integer arguments\n");
+            return value_none();
+        }
+        start = argv[0].as.i;
+        stop = argv[1].as.i;
+        step = 1;
+    } else if (argc == 3) {
+        if (argv[0].kind != VAL_INT ||
+            argv[1].kind != VAL_INT ||
+            argv[2].kind != VAL_INT) {
+            fprintf(stderr, "[runtime] range() requires integer arguments\n");
+            return value_none();
+        }
+        start = argv[0].as.i;
+        stop = argv[1].as.i;
+        step = argv[2].as.i;
+        if (step == 0) {
+            fprintf(stderr, "[runtime] range() step cannot be zero\n");
+            return value_none();
+        }
+    } else {
+        fprintf(stderr, "[runtime] range() takes 1 to 3 arguments, got %d\n", argc);
+        return value_none();
+    }
+
+    return value_range(start, stop, step);
+}
 
 // === Registration table ===
 // Static NativeFunction records - immortal, shared by all callers.
@@ -278,6 +320,13 @@ static NativeFunction min_native = {
     .fn = native_min,
     .arity = -1,
 };
+
+static NativeFunction range_native = {
+    .name = "range",
+    .fn = native_range,
+    .arity = -1,   // Variadic (1-3 checked in function)
+};
+
 // === Install into global environment ===
 
 void native_fns_install(Environment* global) {
@@ -292,4 +341,5 @@ void native_fns_install(Environment* global) {
     env_define(global, "abs", value_native(&abs_native));
     env_define(global, "max", value_native(&max_native));
     env_define(global, "min", value_native(&min_native));
+    env_define(global, "range", value_native(&range_native));
 }

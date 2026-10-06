@@ -63,6 +63,22 @@ Value value_native(NativeFunction* fn) {
     return v;
 }
 
+Value value_range(long long start, long long stop, long long step) {
+    Value v;
+    v.kind = VAL_RANGE;
+    RangeValue* r = (RangeValue*)malloc(sizeof(RangeValue));
+    if (!r) {
+        v.kind = VAL_NONE;
+        return v;
+    }
+    r->start = start;
+    r->stop = stop;
+    r->step = step;
+    r->current = start;
+    v.as.range = r;
+    return v;
+}
+
 // === Destructor ===
 
 void value_destroy(Value* value) {
@@ -82,6 +98,10 @@ void value_destroy(Value* value) {
         case VAL_NATIVE:
             // Native functions are also immortal - see VAL_FUNCTION note.
             break;
+        case VAL_RANGE:
+          free(value->as.range);
+          value->as.range = NULL;
+          break;
         default:
             // Primitives own nothing on the heap.
             break;
@@ -134,6 +154,18 @@ char* value_to_string(Value value) {
               ? value.as.native->name : "?");
           return strdup(buf);
 }
+      case VAL_RANGE: {
+          char buf[128];
+          if (value.as.range) {
+              snprintf(buf, sizeof(buf), "range(%lld, %lld, %lld)",
+                  value.as.range->start,
+                  value.as.range->stop,
+                  value.as.range->step);
+          } else {
+              snprintf(buf, sizeof(buf), "range(?)");
+          }
+          return strdup(buf);
+      }
         default:
             return strdup("<unknown>");
     }
@@ -176,6 +208,11 @@ bool value_equals(Value a, Value b) {
           return a.as.function == b.as.function;
         case VAL_NATIVE:
           return a.as.native == b.as.native;
+        case VAL_RANGE:
+            if (!a.as.range || !b.as.range) return a.as.range == b.as.range;
+            return a.as.range->start == b.as.range->start
+                && a.as.range->stop == b.as.range->stop
+                && a.as.range->step == b.as.range->step;
         default:
             return false;
     }
@@ -212,6 +249,22 @@ Value value_clone(Value source) {
             }
             return copy;
         }
+      case VAL_RANGE: {
+  Value copy;
+  copy.kind = VAL_RANGE;
+  RangeValue* r = (RangeValue*)malloc(sizeof(RangeValue));
+  if (!r) {
+      copy.kind = VAL_NONE;
+      return copy;
+  }
+  if (source.as.range) {
+      *r = *source.as.range;
+  } else {
+      r->start = r->stop = r->step = r->current = 0;
+  }
+  copy.as.range = r;
+  return copy;
+}
         default:
             // Unknown kinds return None (safe fallback).
             return value_none();

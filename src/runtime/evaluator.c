@@ -39,6 +39,7 @@ static bool is_truthy(Value v) {
         case VAL_STRING: return v.as.string.length > 0;
         case VAL_FUNCTION: return v.as.function != NULL;
         case VAL_NATIVE: return v.as.native != NULL;
+        case VAL_RANGE: return v.as.range != NULL;
         default:         return true;
     }
 }
@@ -569,9 +570,53 @@ StmtResult evaluate_statement(ASTNode* node, Environment* env) {
           }
           return stmt_ok(value_none());
       }
-        case AST_FOR:
-          return stmt_ok(runtime_error(node,
-              "for loops require iterables (VAL_LIST, range()) - Session 6"));
+        case AST_FOR: {
+    // Evaluate the iterable expression
+    Value iter = evaluate(node->as.for_stmt.iterable, env);
+
+    if (iter.kind != VAL_RANGE || !iter.as.range) {
+        value_destroy(&iter);
+        return stmt_ok(runtime_error(node,
+            "for loop requires a range (lists coming later)"));
+    }
+
+    RangeValue* r = iter.as.range;
+    long long step = r->step;
+    if (step == 0) {
+        value_destroy(&iter);
+        return stmt_ok(runtime_error(node,
+            "range step cannot be zero"));
+    }
+
+    // Iterate: current < stop (step>0) or current > stop (step<0)
+    long long current = r->start;
+    StmtResult final = stmt_ok(value_none());
+
+    while ((step > 0 && current < r->stop) ||
+           (step < 0 && current > r->stop)) {
+        // Bind loop variable in current scope
+        env_assign(env, node->as.for_stmt.var_name, value_int(current));
+
+        if (node->as.for_stmt.body) {
+            StmtResult body_result = evaluate_statement(node->as.for_stmt.body, env);
+            if (body_result.signal == SIGNAL_BREAK) {
+                value_destroy(&body_result.value);
+                break;
+            }
+            if (body_result.signal == SIGNAL_RETURN) {
+                value_destroy(&iter);
+                return body_result;  // Propagate up
+            }
+            // SIGNAL_CONTINUE and SIGNAL_NORMAL both continue
+            value_destroy(&body_result.value);
+        }
+
+        current += step;
+    }
+
+    value_destroy(&iter);
+    return final;
+  }
         case AST_CLASS_DEF:
             return stmt_ok(runtime_error(node,
                 "class definitions not yet supported (Session 5)"));
