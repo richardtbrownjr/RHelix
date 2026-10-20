@@ -33,6 +33,67 @@
 #include <stdlib.h>
 #include <string.h>
 
+// Load a file's full contents into a malloc'd string buffer.
+// Caller owns the returned buffer and must free it.
+// Returns NULL on error (file not found, read failure, OOM) and
+// prints a diagnostic to stderr.
+static char* load_file(const char* path) {
+    FILE* f = fopen(path, "rb");
+    if (!f) {
+        fprintf(stderr, "rhelix: cannot open '%s'\n", path);
+        return NULL;
+    }
+
+    if (fseek(f, 0, SEEK_END) != 0) {
+        fprintf(stderr, "rhelix: seek failed on '%s'\n", path);
+        fclose(f);
+        return NULL;
+    }
+
+    long size = ftell(f);
+    if (size < 0) {
+        fprintf(stderr, "rhelix: ftell failed on '%s'\n", path);
+        fclose(f);
+        return NULL;
+    }
+
+    rewind(f);
+
+    char* buffer = (char*)malloc((size_t)size + 1);
+    if (!buffer) {
+        fprintf(stderr, "rhelix: out of memory loading '%s'\n", path);
+        fclose(f);
+        return NULL;
+    }
+
+    size_t read = fread(buffer, 1, (size_t)size, f);
+    fclose(f);
+
+    if (read != (size_t)size) {
+        fprintf(stderr, "rhelix: read %zu of %ld bytes from '%s'\n",
+                read, size, path);
+        free(buffer);
+        return NULL;
+    }
+
+    buffer[size] = '\0';
+
+    // Handle shebang line: if the file starts with #!, skip the first
+    // line (replace newline with code position). The parser doesn't
+    // need to see shebang.
+    if (buffer[0] == '#' && buffer[1] == '!') {
+        char* newline = strchr(buffer, '\n');
+        if (newline) {
+            // Blank out the shebang line but keep the newline so line
+            // numbers in error messages stay accurate.
+            for (char* p = buffer; p < newline; p++) {
+                *p = ' ';
+            }
+        }
+    }
+
+    return buffer;
+}
 
 // Reads a line from stdin. Returns a malloc'd string (caller frees)
 // or NULL on EOF. Strips trailing newline.
@@ -141,7 +202,98 @@ static bool is_exit_command(const char* line) {
     return strcmp(line, "exit") == 0 || strcmp(line, "quit") == 0;
 }
 
-int main(void) {
+// Execute a RHelix source file. Loads the file, parses it as a module,
+// evaluates against a fresh global environment with natives installed.
+// Returns 0 on clean execution, 1 on parse or runtime errors, 2 on
+// file I/O errors.
+//
+// Unlike the REPL, bare expression statements do NOT auto-print their
+// values. Only explicit print() calls produce output. This matches
+// Python's `python file.py` semantics: a file is a program, not a
+// transcript of a conversation.
+static int run_file(const char* path) {
+    char* source = load_file(path);
+    if (!source) {
+        return 2;
+    }
+
+    // Tokenize
+    Lexer* lexer = lexer_create(source);
+    if (!lexer) {
+        fprintf(stderr, "rhelix: could not create lexer\n");
+        free(source);
+        return 1;
+    }
+
+    Token** tokens = NULL;
+    int token_count = 0;
+    int token_capacity = 0;
+    while (1) {
+        Token* tok = lexer_next_token(lexer);
+        if (!tok) break;
+        if (token_count >= token_capacity) {
+            token_capacity = token_capacity == 0 ? 64 : token_capacity * 2;
+            tokens = (Token**)realloc(tokens, sizeof(Token*) * token_capacity);
+        }
+        tokens[token_count++] = tok;
+        if (tok->type == TOKEN_EOF) break;
+    }
+
+    // Parse
+    Parser* parser = parser_create(tokens, token_count);
+    if (!parser) {
+        fprintf(stderr, "rhelix: could not create parser\n");
+        for (int i = 0; i < token_count; i++) free(tokens[i]);
+        free(tokens);
+        lexer_destroy(lexer);
+        free(source);
+        return 1;
+    }
+
+    ASTNode* module = parser_parse_module(parser);
+    if (!module) {
+        fprintf(stderr, "rhelix: parse failed\n");
+        parser_destroy(parser);
+        for (int i = 0; i < token_count; i++) free(tokens[i]);
+        free(tokens);
+        lexer_destroy(lexer);
+        free(source);
+        return 1;
+    }
+
+    // Build execution environment
+    Environment* global = env_create(NULL);
+    if (!global) {
+        fprintf(stderr, "rhelix: could not create global environment\n");
+        // We intentionally leak module/parser/tokens here - process is exiting
+        return 1;
+    }
+    native_fns_install(global);
+
+    // Execute - we don't print the value because file execution is not
+    // a REPL. Only explicit print() calls produce output.
+    StmtResult sr = evaluate_statement(module, global);
+    (void)sr;  // Suppress unused warning; result is intentionally discarded
+
+    // Cleanup. Note: like the REPL, we intentionally leak the module AST
+    // because FunctionValues store pointers into it. In a one-shot file
+    // execution the process is about to exit, so this is harmless.
+    env_destroy(global);
+    parser_destroy(parser);
+    for (int i = 0; i < token_count; i++) free(tokens[i]);
+    free(tokens);
+    lexer_destroy(lexer);
+    free(source);
+
+    return 0;
+}
+
+int main(int argc, char** argv) {
+  // If a file path was given on the command line, execute it and exit.
+  // Otherwise fall through to interactive REPL mode.
+  if (argc > 1) {
+      return run_file(argv[1]);
+  }
     printf("RHelix REPL — statements + expressions\n");
     printf("Try: x = 5   then   x + 1\n");
     printf("Type 'exit' to quit.\n\n");
