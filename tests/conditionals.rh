@@ -1,0 +1,17 @@
+x = 10
+if x > 5:
+    print("big")
+else:
+    print("small")
+
+y = 3
+if y > 100:
+    print("huge")
+else:
+    if y > 10:
+        print("medium")
+    else:
+        print("tiny")
+
+print("ternary:", 42 if True else 99)
+print("ternary:", 42 if False else 99)

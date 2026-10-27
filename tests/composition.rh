@@ -1,0 +1,26 @@
+def sum_to(n):
+    total = 0
+    for i in range(n + 1):
+        total = total + i
+    return total
+
+def is_even(n):
+    return n % 2 == 0
+
+def sum_evens_to(n):
+    total = 0
+    for i in range(n + 1):
+        if is_even(i):
+            total = total + i
+    return total
+
+def count_down(start):
+    for i in range(start, 0, -1):
+        print(i)
+    print("liftoff")
+
+print(sum_to(10))
+print(sum_to(100))
+print(sum_evens_to(10))
+print(sum_evens_to(20))
+count_down(3)
