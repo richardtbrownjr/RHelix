@@ -79,6 +79,41 @@ Value value_range(long long start, long long stop, long long step) {
     return v;
 }
 
+Value value_list(void) {
+    Value v;
+    v.kind = VAL_LIST;
+    ListValue* l = (ListValue*)malloc(sizeof(ListValue));
+    if (!l) {
+        v.kind = VAL_NONE;
+        return v;
+    }
+    l->items = NULL;
+    l->count = 0;
+    l->capacity = 0;
+    v.as.list = l;
+    return v;
+}
+
+// Append takes ownership of the element Value. The caller must NOT
+// destroy it afterward; destroying the list destroys the element.
+void list_append(ListValue* list, Value element) {
+    if (!list) {
+        value_destroy(&element);
+        return;
+    }
+    if (list->count >= list->capacity) {
+        int new_cap = list->capacity == 0 ? 8 : list->capacity * 2;
+        Value* grown = (Value*)realloc(list->items, sizeof(Value) * new_cap);
+        if (!grown) {
+            value_destroy(&element);
+            return;
+        }
+        list->items = grown;
+        list->capacity = new_cap;
+    }
+    list->items[list->count++] = element;
+}
+
 // === Destructor ===
 
 void value_destroy(Value* value) {
@@ -101,6 +136,17 @@ void value_destroy(Value* value) {
         case VAL_RANGE:
           free(value->as.range);
           value->as.range = NULL;
+          break;
+        case VAL_LIST:
+          if (value->as.list) {
+              // Destroy each contained Value's owned data
+              for (int i = 0; i < value->as.list->count; i++) {
+                  value_destroy(&value->as.list->items[i]);
+              }
+              free(value->as.list->items);
+              free(value->as.list);
+              value->as.list = NULL;
+          }
           break;
         default:
             // Primitives own nothing on the heap.
@@ -166,6 +212,50 @@ char* value_to_string(Value value) {
           }
           return strdup(buf);
       }
+      case VAL_LIST: {
+    if (!value.as.list || value.as.list->count == 0) {
+        return strdup("[]");
+    }
+    size_t cap = 64;
+    size_t len = 0;
+    char* buf = (char*)malloc(cap);
+    if (!buf) return strdup("[?]");
+    buf[len++] = '[';
+    for (int i = 0; i < value.as.list->count; i++) {
+        if (i > 0) {
+            if (len + 2 >= cap) {
+                cap *= 2;
+                buf = (char*)realloc(buf, cap);
+                if (!buf) return strdup("[?]");
+            }
+            buf[len++] = ',';
+            buf[len++] = ' ';
+        }
+        char* elem = value_to_string(value.as.list->items[i]);
+        if (elem) {
+            size_t elem_len = strlen(elem);
+            while (len + elem_len + 2 >= cap) {
+                cap *= 2;
+                buf = (char*)realloc(buf, cap);
+                if (!buf) {
+                    free(elem);
+                    return strdup("[?]");
+                }
+            }
+            memcpy(buf + len, elem, elem_len);
+            len += elem_len;
+            free(elem);
+        }
+    }
+    if (len + 2 >= cap) {
+        cap += 2;
+        buf = (char*)realloc(buf, cap);
+        if (!buf) return strdup("[?]");
+    }
+    buf[len++] = ']';
+    buf[len] = '\0';
+    return buf;
+}
         default:
             return strdup("<unknown>");
     }
@@ -213,6 +303,10 @@ bool value_equals(Value a, Value b) {
             return a.as.range->start == b.as.range->start
                 && a.as.range->stop == b.as.range->stop
                 && a.as.range->step == b.as.range->step;
+        case VAL_LIST:
+          // Identity comparison - same ListValue pointer.
+          // Structural equality can be added later if needed.
+          return a.as.list == b.as.list;
         default:
             return false;
     }
@@ -265,6 +359,35 @@ Value value_clone(Value source) {
   copy.as.range = r;
   return copy;
 }
+      case VAL_LIST: {
+          Value copy;
+          copy.kind = VAL_LIST;
+          ListValue* l = (ListValue*)malloc(sizeof(ListValue));
+          if (!l) {
+              copy.kind = VAL_NONE;
+              return copy;
+          }
+          if (source.as.list && source.as.list->count > 0) {
+              l->count = source.as.list->count;
+              l->capacity = source.as.list->count;
+              l->items = (Value*)malloc(sizeof(Value) * l->capacity);
+              if (!l->items) {
+                  free(l);
+                  copy.kind = VAL_NONE;
+                  return copy;
+              }
+              // Deep-copy each element
+              for (int i = 0; i < source.as.list->count; i++) {
+                  l->items[i] = value_clone(source.as.list->items[i]);
+              }
+          } else {
+              l->items = NULL;
+              l->count = 0;
+              l->capacity = 0;
+          }
+          copy.as.list = l;
+          return copy;
+      }
         default:
             // Unknown kinds return None (safe fallback).
             return value_none();

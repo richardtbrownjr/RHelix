@@ -29,6 +29,10 @@ static Value native_len(int argc, Value* argv) {
     if (v.kind == VAL_STRING) {
         return value_int((long long)v.as.string.length);
     }
+    if (v.kind == VAL_LIST) {
+        if (!v.as.list) return value_int(0);
+        return value_int((long long)v.as.list->count);
+    }
     fprintf(stderr, "[runtime] len() unsupported for this type\n");
     return value_none();
 }

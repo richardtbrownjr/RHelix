@@ -1,0 +1,31 @@
+# Basic literals
+print([1, 2, 3])
+print([])
+print(["hello", "world"])
+print([1, 2.5, "mixed"])
+
+# Storage and recall
+nums = [10, 20, 30]
+print(nums)
+
+# len()
+print(len(nums))
+print(len([]))
+print(len(["a", "b", "c", "d"]))
+
+# Iteration
+for x in [1, 2, 3]:
+    print(x)
+
+# Iteration with computation
+for x in [10, 20, 30]:
+    print(x * 2)
+
+# Accumulation
+total = 0
+for x in [1, 2, 3, 4, 5]:
+    total = total + x
+print(total)
+
+# Nested lists print correctly
+print([[1, 2], [3, 4]])

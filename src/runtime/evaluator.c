@@ -40,6 +40,7 @@ static bool is_truthy(Value v) {
         case VAL_FUNCTION: return v.as.function != NULL;
         case VAL_NATIVE: return v.as.native != NULL;
         case VAL_RANGE: return v.as.range != NULL;
+        case VAL_LIST: return v.as.list != NULL && v.as.list->count > 0;
         default:         return true;
     }
 }
@@ -415,9 +416,22 @@ Value evaluate(ASTNode* node, Environment* env) {
             return runtime_error(node, "attribute access not yet supported");
         case AST_SUBSCRIPT:
             return runtime_error(node, "subscripts not yet supported");
-        case AST_LIST_LITERAL:
+      case AST_LIST_LITERAL: {
+          Value list_val = value_list();
+          if (list_val.kind != VAL_LIST) {
+              return runtime_error(node, "could not allocate list");
+          }
+          // Evaluate each element and append (list takes ownership)
+          for (int i = 0; i < node->as.list_literal.count; i++) {
+              Value elem = evaluate(node->as.list_literal.elements[i], env);
+              list_append(list_val.as.list, elem);
+          }
+          return list_val;
+        }
+
         case AST_DICT_LITERAL:
-            return runtime_error(node, "collection literals not yet supported");
+          return runtime_error(node,
+              "dict literals not yet supported");
         case AST_LAMBDA:
             return runtime_error(node, "lambdas not yet supported (Session 4+)");
 
@@ -570,53 +584,74 @@ StmtResult evaluate_statement(ASTNode* node, Environment* env) {
           }
           return stmt_ok(value_none());
       }
-        case AST_FOR: {
-    // Evaluate the iterable expression
-    Value iter = evaluate(node->as.for_stmt.iterable, env);
+      case AST_FOR: {
+          // Evaluate the iterable
+          Value iter = evaluate(node->as.for_stmt.iterable, env);
 
-    if (iter.kind != VAL_RANGE || !iter.as.range) {
-        value_destroy(&iter);
-        return stmt_ok(runtime_error(node,
-            "for loop requires a range (lists coming later)"));
-    }
+          // === VAL_RANGE path ===
+          if (iter.kind == VAL_RANGE && iter.as.range) {
+              RangeValue* r = iter.as.range;
+              long long step = r->step;
+              if (step == 0) {
+                  value_destroy(&iter);
+                  return stmt_ok(runtime_error(node,
+                      "range step cannot be zero"));
+              }
 
-    RangeValue* r = iter.as.range;
-    long long step = r->step;
-    if (step == 0) {
-        value_destroy(&iter);
-        return stmt_ok(runtime_error(node,
-            "range step cannot be zero"));
-    }
+              long long current = r->start;
+              while ((step > 0 && current < r->stop) ||
+                     (step < 0 && current > r->stop)) {
+                  env_assign(env, node->as.for_stmt.var_name, value_int(current));
 
-    // Iterate: current < stop (step>0) or current > stop (step<0)
-    long long current = r->start;
-    StmtResult final = stmt_ok(value_none());
+                  if (node->as.for_stmt.body) {
+                      StmtResult body_result = evaluate_statement(node->as.for_stmt.body, env);
+                      if (body_result.signal == SIGNAL_BREAK) {
+                          value_destroy(&body_result.value);
+                          break;
+                      }
+                      if (body_result.signal == SIGNAL_RETURN) {
+                          value_destroy(&iter);
+                          return body_result;
+                      }
+                      value_destroy(&body_result.value);
+                  }
+                  current += step;
+              }
+              value_destroy(&iter);
+              return stmt_ok(value_none());
+          }
 
-    while ((step > 0 && current < r->stop) ||
-           (step < 0 && current > r->stop)) {
-        // Bind loop variable in current scope
-        env_assign(env, node->as.for_stmt.var_name, value_int(current));
+          // === VAL_LIST path ===
+          if (iter.kind == VAL_LIST && iter.as.list) {
+              ListValue* l = iter.as.list;
+              for (int i = 0; i < l->count; i++) {
+                  // Bind loop variable to a clone so loop mutations don't
+                  // corrupt the source list
+                  env_assign(env, node->as.for_stmt.var_name,
+                             value_clone(l->items[i]));
 
-        if (node->as.for_stmt.body) {
-            StmtResult body_result = evaluate_statement(node->as.for_stmt.body, env);
-            if (body_result.signal == SIGNAL_BREAK) {
-                value_destroy(&body_result.value);
-                break;
-            }
-            if (body_result.signal == SIGNAL_RETURN) {
-                value_destroy(&iter);
-                return body_result;  // Propagate up
-            }
-            // SIGNAL_CONTINUE and SIGNAL_NORMAL both continue
-            value_destroy(&body_result.value);
-        }
+                  if (node->as.for_stmt.body) {
+                      StmtResult body_result = evaluate_statement(node->as.for_stmt.body, env);
+                      if (body_result.signal == SIGNAL_BREAK) {
+                          value_destroy(&body_result.value);
+                          break;
+                      }
+                      if (body_result.signal == SIGNAL_RETURN) {
+                          value_destroy(&iter);
+                          return body_result;
+                      }
+                      value_destroy(&body_result.value);
+                  }
+              }
+              value_destroy(&iter);
+              return stmt_ok(value_none());
+          }
 
-        current += step;
-    }
-
-    value_destroy(&iter);
-    return final;
-  }
+          // Not iterable
+          value_destroy(&iter);
+          return stmt_ok(runtime_error(node,
+              "for loop requires a range or list"));
+      }
         case AST_CLASS_DEF:
             return stmt_ok(runtime_error(node,
                 "class definitions not yet supported (Session 5)"));

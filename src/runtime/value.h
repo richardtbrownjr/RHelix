@@ -30,6 +30,7 @@ typedef enum {
     VAL_FUNCTION,  // Callable - AST + captured environment
     VAL_NATIVE,    // C-implemented function callable from RHelix
     VAL_RANGE,     // Lazy integer range (start, stop, step)
+    VAL_LIST,      // Dynamic array of Values
 } ValueKind;
 
 // Forward declarations to avoid circular includes.
@@ -80,6 +81,22 @@ typedef struct RangeValue {
     long long current;   // Advances during iteration
 } RangeValue;
 
+// A dynamic array of Values. Lists own their contents fully — each
+// slot holds a Value by value (struct copy). When the list is
+// destroyed, we iterate and destroy each slot's owned data; when
+// cloning, we deep-copy each element via value_clone.
+//
+// Growth: start at 0 capacity, grow to 8 on first append, double
+// thereafter. Standard dynamic array.
+//
+// Owned by Values (unlike immortal VAL_FUNCTION/VAL_NATIVE), so
+// value_destroy frees the heap array and the ListValue struct.
+typedef struct ListValue {
+    Value* items;      // Owned array of Values (NULL when capacity == 0)
+    int count;         // Logical size
+    int capacity;      // Allocated slots
+} ListValue;
+
 
 typedef struct Value {
     ValueKind kind;
@@ -94,6 +111,7 @@ typedef struct Value {
         FunctionValue* function;  // Non-owning pointer (see FunctionValue notes)
         NativeFunction* native;   // Non-owning pointer (immortal)
         RangeValue* range;        // Owned - freed by value_destroy
+        ListValue* list;          // Owned - freed by value_destroy
     } as;
 } Value;
 
@@ -109,6 +127,9 @@ Value value_string(const char* chars);  // Copies input
 Value value_function(FunctionValue* fn);
 Value value_native(NativeFunction* fn);
 Value value_range(long long start, long long stop, long long step);
+Value value_list(void);                           // Empty list
+void list_append(ListValue* list, Value element); // Takes ownership of element
+
 
 // === Destructor ===
 // Frees any heap data owned by the Value. Safe to call on primitives
